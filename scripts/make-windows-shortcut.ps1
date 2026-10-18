@@ -34,7 +34,9 @@ if (-not (Test-Path $WslgExe)) {
 }
 
 # --- icon: copy into the Windows profile so the .lnk can reference a drive path
-$iconDir  = Join-Path $env:LOCALAPPDATA "LlamaHerd"
+# Not under %LOCALAPPDATA%: Explorer failed to render shortcut icons from there on
+# some machines (blank document icon), while %USERPROFILE%\LlamaHerd works.
+$iconDir  = Join-Path $env:USERPROFILE "LlamaHerd"
 New-Item -ItemType Directory -Force -Path $iconDir | Out-Null
 $linuxIconSource = "\\wsl.localhost\$Distro$($RepoPath -replace '/', '\')\build\windows\icon.ico"
 # The file name carries a content hash: Explorer caches icons by path, so a
@@ -46,6 +48,9 @@ if (Test-Path $linuxIconSource) {
     Get-ChildItem $iconDir -Filter "icon*.ico" -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -ne $iconPath } | Remove-Item -Force -ErrorAction SilentlyContinue
     Copy-Item -Force $linuxIconSource $iconPath
+    # clean up icons an earlier version left under %LOCALAPPDATA%
+    Get-ChildItem (Join-Path $env:LOCALAPPDATA "LlamaHerd") -Filter "icon*.ico" -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
 } else {
     Write-Warning "icon not found at $linuxIconSource (run scripts/make-icon.py first)"
 }

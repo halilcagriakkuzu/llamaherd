@@ -115,11 +115,20 @@ function New-Lnk([string]$Path, [string]$Target, [string]$Arguments, [string]$De
 }
 
 function Get-HostIconPath([string]$DistroName, [string]$LinuxRepo) {
-    $iconDir = Join-Path $env:LOCALAPPDATA "LlamaHerd"
+    # %USERPROFILE%\LlamaHerd, not %LOCALAPPDATA%: Explorer rendered a blank icon for
+    # shortcuts pointing into AppData on some machines. The file name carries a
+    # content hash so a changed icon is not served from Explorer's cache.
+    $iconDir = Join-Path $env:USERPROFILE "LlamaHerd"
     New-Item -ItemType Directory -Force -Path $iconDir | Out-Null
     $iconPath = Join-Path $iconDir "icon.ico"
     $linuxIcon = "\\wsl.localhost\$DistroName$($LinuxRepo -replace '/', '\')\build\windows\icon.ico"
-    if (Test-Path $linuxIcon) { Copy-Item -Force $linuxIcon $iconPath }
+    if (Test-Path $linuxIcon) {
+        $hash = (Get-FileHash -Algorithm SHA1 $linuxIcon).Hash.Substring(0, 8).ToLower()
+        $iconPath = Join-Path $iconDir "icon-$hash.ico"
+        Get-ChildItem $iconDir -Filter "icon*.ico" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -ne $iconPath } | Remove-Item -Force -ErrorAction SilentlyContinue
+        Copy-Item -Force $linuxIcon $iconPath
+    }
     return $iconPath
 }
 
