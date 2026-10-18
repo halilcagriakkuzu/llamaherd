@@ -83,7 +83,7 @@ function Have($c) { return [bool](Get-Command $c -ErrorAction SilentlyContinue) 
 function Get-RepoSlug {
     if ($Repo) { return $Repo }
     if ($env:LLAMAHERD_REPO) { return $env:LLAMAHERD_REPO }
-    return "OWNER/LlamaHerd"
+    return "halilcagriakkuzu/llamaherd"
 }
 function Get-InstallHost {
     if ($Prefix) { return $Prefix }
