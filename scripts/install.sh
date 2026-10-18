@@ -521,21 +521,23 @@ seed_data() {
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
 detect_server_bin() {
-  if [ -n "${LLAMAHERD_SERVER_BIN:-}" ]; then printf '%s' "$LLAMAHERD_SERVER_BIN"; return; fi
-  if have llama-server; then command -v llama-server; return; fi
+  if [ -n "${LLAMAHERD_SERVER_BIN:-}" ]; then printf '%s' "$LLAMAHERD_SERVER_BIN"; return 0; fi
+  if have llama-server; then command -v llama-server; return 0; fi
   local c
   for c in \
     "$HOME/llama.cpp/build-latest/bin/llama-server" \
     "$HOME/llama.cpp/build/bin/llama-server" \
     "$HOME/llama.cpp/bin/llama-server"; do
-    [ -x "$c" ] && { printf '%s' "$c"; return; }
+    [ -x "$c" ] && { printf '%s' "$c"; return 0; }
   done
+  return 0
 }
 
 detect_models_dir() {
-  if [ -n "${LLAMAHERD_MODELS_DIR:-}" ]; then printf '%s' "$LLAMAHERD_MODELS_DIR"; return; fi
-  [ -d "$HOME/llm/models" ] && { printf '%s' "$HOME/llm/models"; return; }
-  [ -d "$HOME/models" ] && { printf '%s' "$HOME/models"; return; }
+  if [ -n "${LLAMAHERD_MODELS_DIR:-}" ]; then printf '%s' "$LLAMAHERD_MODELS_DIR"; return 0; fi
+  [ -d "$HOME/llm/models" ] && { printf '%s' "$HOME/llm/models"; return 0; }
+  [ -d "$HOME/models" ] && { printf '%s' "$HOME/models"; return 0; }
+  return 0
 }
 
 write_config() {
