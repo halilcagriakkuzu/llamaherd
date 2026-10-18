@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default models directory is now `~/LlamaHerd/models` (created on first run).
+- Removed the dummy/sample-data phase: no built-in fake models or presets, no
+  fake Browse button; `dummy/` became `schema/`.
+- Windows GUI detaches its console window on launch.
+- `install.ps1` defaults to the real repo instead of an `OWNER` placeholder.
+
 ## [0.1.1] - 2026-10-18
 
 ### Fixed

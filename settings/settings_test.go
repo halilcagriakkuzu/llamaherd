@@ -87,14 +87,14 @@ func TestModelsDirEnvOverride(t *testing.T) {
 	}
 }
 
-func TestModelsDirDefaultIsRootModels(t *testing.T) {
+func TestModelsDirDefaultIsHomeLlamaHerdModels(t *testing.T) {
 	isolate(t)
 	t.Setenv(EnvModelsDir, "")
-	root := ProjectRoot()
-	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
-		t.Fatalf("ProjectRoot() = %q, expected to contain go.mod: %v", root, err)
+	h := homeDir()
+	if h == "" {
+		t.Skip("no home directory")
 	}
-	if got, want := ModelsDir(), filepath.Join(root, "models"); got != want {
+	if got, want := ModelsDir(), filepath.Join(h, "LlamaHerd", "models"); got != want {
 		t.Fatalf("ModelsDir() = %q, want %q", got, want)
 	}
 }

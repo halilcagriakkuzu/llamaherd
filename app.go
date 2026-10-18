@@ -257,6 +257,11 @@ func (a *App) initModels() {
 	if modelsDir == "" {
 		modelsDir = settings.ModelsDir()
 	}
+	if settings.IsDefaultModelsDir() {
+		// Create the default folder so first-run users have somewhere to drop
+		// models (an explicitly configured path is never created for them).
+		_ = os.MkdirAll(modelsDir, 0o755)
+	}
 	scanned := store.ScanModels(modelsDir)
 	a.models = scanned
 	if n := store.ApplyLibrary(settings.LibraryDir(), a.models); n > 0 {

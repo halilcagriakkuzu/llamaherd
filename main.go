@@ -19,6 +19,7 @@ func main() {
 	if len(os.Args) > 1 {
 		os.Exit(runCLI(os.Args[1:]))
 	}
+	hideConsole()
 	app := NewApp()
 	err := wails.Run(&options.App{
 		Title:            "LlamaHerd — llama.cpp control panel",

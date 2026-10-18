@@ -239,9 +239,8 @@ func LlamaBuildDir() string {
 }
 
 // ModelsDir returns the directory scanned (recursively) for *.gguf models. An
-// explicit LLAMAHERD_MODELS_DIR or config-file value wins; otherwise it
-// defaults to the "models" subdirectory of the LlamaHerd project root (see
-// ProjectRoot).
+// explicit LLAMAHERD_MODELS_DIR or config-file value wins; otherwise
+// DefaultModelsDir.
 func ModelsDir() string {
 	if v := strings.TrimSpace(os.Getenv(EnvModelsDir)); v != "" {
 		return expandHome(v)
@@ -249,7 +248,23 @@ func ModelsDir() string {
 	if v := strings.TrimSpace(Config().ModelsDir); v != "" {
 		return expandHome(v)
 	}
+	return DefaultModelsDir()
+}
+
+// DefaultModelsDir is <home>/LlamaHerd/models (e.g. C:\Users\you\LlamaHerd\models
+// on Windows, ~/LlamaHerd/models elsewhere); it falls back to the project root
+// only when no home directory can be determined.
+func DefaultModelsDir() string {
+	if h := homeDir(); h != "" {
+		return filepath.Join(h, "LlamaHerd", "models")
+	}
 	return filepath.Join(ProjectRoot(), "models")
+}
+
+// IsDefaultModelsDir reports whether the models directory is the built-in
+// default (not set via env or config), i.e. safe for the app to create.
+func IsDefaultModelsDir() bool {
+	return strings.TrimSpace(os.Getenv(EnvModelsDir)) == "" && strings.TrimSpace(Config().ModelsDir) == ""
 }
 
 // APIPort returns the loopback control-API port as a string. An explicit
