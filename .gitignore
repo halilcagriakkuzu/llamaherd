@@ -31,3 +31,9 @@ desktop.ini
 
 # Local agent tooling
 .claude/settings.local.json
+
+# Personal / local-only tooling and agent notes
+/CLAUDE.local.md
+/AGENTS.local.md
+/.claude/
+/opencode.json
