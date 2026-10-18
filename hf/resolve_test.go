@@ -48,29 +48,6 @@ func TestResolveMTPDraft(t *testing.T) {
 	}
 }
 
-func TestRecommend(t *testing.T) {
-	recs := Recommend(16384, 32768)
-	if len(recs) != len(Catalog) {
-		t.Fatalf("got %d recommendations, want %d", len(recs), len(Catalog))
-	}
-	if recs[0].Fit != "gpu" {
-		t.Fatalf("first fit = %s, want gpu", recs[0].Fit)
-	}
-	for _, r := range recs {
-		if r.Fit == "cpu" {
-			t.Fatalf("16 GiB VRAM should fit %s on the GPU", r.Entry.ID)
-		}
-	}
-
-	tiny := Recommend(2048, 4096)
-	if tiny[0].Fit != "gpu" {
-		t.Fatalf("tiny first fit = %s, want gpu", tiny[0].Fit)
-	}
-	if last := tiny[len(tiny)-1]; last.Fit != "too-big" {
-		t.Fatalf("tiny last fit = %s, want too-big", last.Fit)
-	}
-}
-
 func TestStarter(t *testing.T) {
 	s := Starter()
 	if s.ID == "" || !s.Starter {

@@ -22,13 +22,16 @@ type fake struct {
 
 func (f *fake) rec(s string) { f.calls = append(f.calls, s) }
 
-func (f *fake) SnapshotJSON() ([]byte, error) { return []byte(`{"status":"stopped"}`), nil }
-func (f *fake) DoctorJSON() ([]byte, error)   { return []byte(`{"ok":true}`), nil }
-func (f *fake) DownloadJSON() ([]byte, error) { return []byte(`{"active":false}`), nil }
-func (f *fake) CatalogJSON() ([]byte, error)  { return []byte(`{"entries":[]}`), nil }
-func (f *fake) StartDownload(ref, file, vision string) error {
-	f.rec("download:" + ref + "|" + file + "|" + vision)
+func (f *fake) SnapshotJSON() ([]byte, error)        { return []byte(`{"status":"stopped"}`), nil }
+func (f *fake) DoctorJSON() ([]byte, error)          { return []byte(`{"ok":true}`), nil }
+func (f *fake) DownloadJSON() ([]byte, error)        { return []byte(`{"active":false}`), nil }
+func (f *fake) CatalogJSON(all bool) ([]byte, error) { return []byte(`{"entries":[]}`), nil }
+func (f *fake) StartDownload(ref, file, vision, mtp string) error {
+	f.rec("download:" + ref + "|" + file + "|" + vision + "|" + mtp)
 	return nil
+}
+func (f *fake) RepoFilesJSON(ref string) ([]byte, error) {
+	return []byte(`{"repo":"` + ref + `","models":[]}`), nil
 }
 func (f *fake) CancelDownload() error            { f.rec("cancel"); return nil }
 func (f *fake) SetHFToken(t string) error        { f.rec("token"); return nil }
@@ -162,9 +165,15 @@ func TestDownloadEndpoints(t *testing.T) {
 	isolate(t)
 	f := &fake{}
 	h := Handler(f)
-	do(t, h, "POST", "/download", `{"repo":"o/r","file":"f.gguf","vision":"v.gguf"}`, nil)
+	do(t, h, "POST", "/download", `{"repo":"o/r","file":"f.gguf","vision":"v.gguf","mtp":"none"}`, nil)
+	if code, body := do(t, h, "GET", "/download/files?ref=o/r", "", nil); code != 200 || !strings.Contains(body, `"repo":"o/r"`) {
+		t.Errorf("GET /download/files = %d %s", code, body)
+	}
+	if code, _ := do(t, h, "GET", "/download/files", "", nil); code != http.StatusBadRequest {
+		t.Errorf("missing ref = %d, want 400", code)
+	}
 	do(t, h, "POST", "/download/cancel", "", nil)
-	if got := strings.Join(f.calls, ","); got != "download:o/r|f.gguf|v.gguf,cancel" {
+	if got := strings.Join(f.calls, ","); got != "download:o/r|f.gguf|v.gguf|none,cancel" {
 		t.Errorf("calls = %s", got)
 	}
 }

@@ -20,7 +20,8 @@ export LLAMAHERD_MODELS_DIR=~/LlamaHerd/models      # default; scanned recursive
 llamaherd doctor                                      # checks everything, prints fixes
 ```
 
-No models yet? `llamaherd download list` shows a catalog scored for your GPU/RAM:
+No models yet? `llamaherd download list` shows a few picks for your GPU/RAM (`--all` lists the
+whole catalog, `download files <owner/name>` any Hugging Face repo):
 
 ```bash
 llamaherd download Qwen/Qwen2.5-1.5B-Instruct-GGUF
@@ -38,5 +39,6 @@ Pick a model, press **Start**, watch the status box. Headless:
 llamaherd list && llamaherd open <alias> && llamaherd status
 ```
 
-The server is then on `http://127.0.0.1:8090`. Start refused? That's the
+The server then listens on **`http://127.0.0.1:8090`** — LlamaHerd's default port (change it under
+Basic → Port; `llama-server` itself would default to 8080). Start refused? That's the
 [VRAM guard](docs/vram-guard.md); other issues: [troubleshooting](docs/troubleshooting.md).

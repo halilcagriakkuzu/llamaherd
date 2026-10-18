@@ -18,8 +18,9 @@ type Control interface {
 	SnapshotJSON() ([]byte, error)
 	DoctorJSON() ([]byte, error)
 	DownloadJSON() ([]byte, error)
-	CatalogJSON() ([]byte, error)
-	StartDownload(ref, file, visionFile string) error
+	CatalogJSON(all bool) ([]byte, error)
+	StartDownload(ref, file, visionFile, mtpFile string) error
+	RepoFilesJSON(ref string) ([]byte, error)
 	CancelDownload() error
 	SetHFToken(token string) error
 	Models() []schema.Model
@@ -76,7 +77,7 @@ func Handler(c Control) http.Handler {
 		writeJSON(w, map[string]any{"models": c.Models()})
 	})
 	mux.HandleFunc("GET /catalog", func(w http.ResponseWriter, r *http.Request) {
-		b, err := c.CatalogJSON()
+		b, err := c.CatalogJSON(r.URL.Query().Get("all") == "1")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -93,12 +94,27 @@ func Handler(c Control) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(b)
 	})
+	mux.HandleFunc("GET /download/files", func(w http.ResponseWriter, r *http.Request) {
+		ref := r.URL.Query().Get("ref")
+		if ref == "" {
+			http.Error(w, "ref required", http.StatusBadRequest)
+			return
+		}
+		b, err := c.RepoFilesJSON(ref)
+		if err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(b)
+	})
 	mux.HandleFunc("POST /download", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Ref    string `json:"ref"`
 			Repo   string `json:"repo"`
 			File   string `json:"file"`
 			Vision string `json:"vision"`
+			MTP    string `json:"mtp"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -108,7 +124,7 @@ func Handler(c Control) http.Handler {
 		if ref == "" {
 			ref = req.Repo
 		}
-		if err := c.StartDownload(ref, req.File, req.Vision); err != nil {
+		if err := c.StartDownload(ref, req.File, req.Vision, req.MTP); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}

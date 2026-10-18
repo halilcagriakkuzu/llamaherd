@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Model catalog from the repository**: `hf/catalog.json` (embedded, refreshed from GitHub `main`,
+  cached; `LLAMAHERD_CATALOG_URL` overrides) with 33 real, header-measured entries (Ornith 1.5 9B,
+  Qwen3.5 9B, Qwen3.8 27B, gpt-oss 20B, Qwen3-Coder 30B-A3B and Next). Models that do not suit the
+  hardware are hidden; GPU, GPU+RAM (hybrid) and CPU fits are told apart.
+- **New download dialog**: a collapsible list of up to five picks (best quality, vision, longest
+  context, MTP, lightweight), **Browse all models…** for the full catalog, and a Hugging Face link
+  field that lists every `.gguf` of a repo with sizes (choose the file, optionally include the
+  vision projector / MTP draft). Downloads continue when the dialog is closed; progress shows in
+  the status bar (click to reopen). CLI: `download list [--all]`, `download files <repo>`,
+  `--no-vision` / `--no-mtp`; API: `GET /download/files`, `GET /catalog?all=1`.
 - **Library editing**: rename models (display name + alias; `configs/<alias>.json` moves
   with it), nested categories with create/rename/delete (empty folders persist; deleting
   keeps the models), move / remove from category. GUI (⋯ menu, right-click), CLI

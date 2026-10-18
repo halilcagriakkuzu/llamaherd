@@ -70,8 +70,20 @@
     dlSummary: $("dlSummary"),
     dlList: $("dlList"),
     dlRef: $("dlRef"),
-    dlFile: $("dlFile"),
-    dlStart: $("dlStart"),
+    dlFind: $("dlFind"),
+    dlMsg: $("dlMsg"),
+    dlCatalogBox: $("dlCatalogBox"),
+    dlHidden: $("dlHidden"),
+    dlBrowse: $("dlBrowse"),
+    dlBadge: $("dlBadge"),
+    catModal: $("catModal"),
+    catSummary: $("catSummary"),
+    catList: $("catList"),
+    catClose: $("catClose"),
+    dlFiles: $("dlFiles"),
+    dlFilesHead: $("dlFilesHead"),
+    dlOptions: $("dlOptions"),
+    dlFileList: $("dlFileList"),
     dlClose: $("dlClose"),
     dlToken: $("dlToken"),
     dlTokenSave: $("dlTokenSave"),
@@ -512,34 +524,216 @@
     return n.toFixed(1) + " " + u[i];
   }
 
+  const FIT_LABEL = { gpu: "fits GPU", hybrid: "GPU + RAM", cpu: "CPU", none: "too large" };
+  const famName = (e) => (e.name || e.id || "").replace(/\s*\(.*\)\s*$/, "");
+
+  // One catalog row: name, size, tags and a Download button. Curated entries name
+  // their exact file and never pull sidecars they did not ask for (vision
+  // projector, MTP draft).
+  function catalogRow(r, opts) {
+    const e = r.entry || {};
+    const row = document.createElement("div");
+    row.className = "dl-row dl-" + (r.fit || "cpu");
+    const left = document.createElement("div");
+    const title = document.createElement("div");
+    title.className = "dl-name";
+    if (opts && opts.quantTitle) {
+      const q = document.createElement("span");
+      q.className = "chip chip-quant";
+      q.textContent = e.quant || "";
+      title.appendChild(q);
+      title.appendChild(document.createTextNode(" " + (e.file || "").split("/").pop()));
+    } else {
+      title.textContent = (e.starter ? "★ " : "") + (e.name || e.id);
+    }
+    const fit = document.createElement("span");
+    fit.className = "dl-fit";
+    fit.textContent = FIT_LABEL[r.fit] || r.fit;
+    title.appendChild(fit);
+    const meta = document.createElement("div");
+    meta.className = "dl-meta";
+    const tags = [e.vision ? "vision" : "", e.mtp ? "MTP" : ""].filter(Boolean).join(" · ");
+    meta.textContent = `${fmtBytes(e.bytes)}${tags ? " · " + tags : ""} · ${r.why || ""}`;
+    left.appendChild(title);
+    left.appendChild(meta);
+    row.appendChild(left);
+    const btn = document.createElement("button");
+    btn.className = "tiny";
+    btn.textContent = "Download";
+    btn.addEventListener("click", () => {
+      el.dlRef.value = e.repo || "";
+      call("StartDownload", e.repo || "", e.file || "", e.mmproj || "none", "none");
+      el.catModal.hidden = true;
+      el.dlModal.hidden = false;
+    });
+    row.appendChild(btn);
+    return row;
+  }
+
   function renderDownloadCatalog(cat) {
-    const list = (cat && cat.entries) || [];
+    const picks = (cat && cat.picks) || [];
+    const info = (cat && cat.info) || {};
     el.dlSummary.textContent =
       `Recommended for this machine — VRAM ${fmtBytes((cat.vramMB || 0) * 1048576)}, RAM ${fmtBytes((cat.ramMB || 0) * 1048576)}`;
     el.dlList.innerHTML = "";
-    list.forEach((r) => {
-      const e = r.entry || {};
+    picks.forEach((p) => {
+      const role = document.createElement("div");
+      role.className = "dl-role";
+      role.textContent = p.label;
+      el.dlList.appendChild(role);
+      el.dlList.appendChild(catalogRow(p.rec));
+    });
+    el.dlHidden.textContent = `${cat.fitting || 0} of ${cat.total || 0} models fit this machine` +
+      (info.updated ? ` · catalog ${info.updated}` : "");
+  }
+
+  function openFullCatalog() {
+    const a = app();
+    if (!a) return;
+    el.catModal.hidden = false;
+    el.catList.textContent = "Loading…";
+    Promise.resolve(a.GetFullCatalog()).then((c) => {
+      const info = c.info || {};
+      el.catSummary.textContent = `VRAM ${fmtBytes((c.vramMB || 0) * 1048576)}, RAM ${fmtBytes((c.ramMB || 0) * 1048576)} · ` +
+        `${(c.entries || []).length} files · catalog ${info.updated || "?"} (${info.source || "embedded"})`;
+      el.catList.innerHTML = "";
+      let last = null;
+      (c.entries || []).forEach((r) => {
+        const fam = r.entry.family || r.entry.id;
+        if (fam !== last) {
+          last = fam;
+          const h = document.createElement("div");
+          h.className = "cat-fam";
+          h.textContent = famName(r.entry);
+          const small = document.createElement("small");
+          small.textContent = `${r.entry.paramsB}B${r.entry.moe ? " MoE" : ""}`;
+          h.appendChild(small);
+          el.catList.appendChild(h);
+        }
+        el.catList.appendChild(catalogRow(r, { quantTitle: true }));
+      });
+    }).catch((err) => { el.catList.textContent = "error: " + (err && err.message ? err.message : err); });
+  }
+
+  // ---- Hugging Face repo browser: paste a link, pick a file ----
+
+  let lookupSeq = 0;
+
+  function findRepoFiles() {
+    const ref = el.dlRef.value.trim();
+    if (!ref) { el.dlMsg.textContent = "Enter a repo (owner/name) or a Hugging Face link."; return; }
+    const a = app();
+    if (!a) return;
+    const seq = ++lookupSeq;
+    el.dlMsg.textContent = "Looking up files…";
+    el.dlFind.disabled = true;
+    Promise.resolve(a.ListRepoFiles(ref)).then((l) => {
+      if (seq !== lookupSeq) return;
+      el.dlMsg.textContent = "";
+      renderRepoFiles(l);
+    }).catch((err) => {
+      if (seq !== lookupSeq) return;
+      el.dlFiles.hidden = true;
+      el.dlMsg.textContent = err && err.message ? err.message : String(err);
+    }).finally(() => { el.dlFind.disabled = false; });
+  }
+
+  function sizeLabel(n) { return fmtBytes(n); }
+
+  function renderRepoFiles(l) {
+    el.dlFiles.hidden = false;
+    el.dlCatalogBox.open = false; // the list below is the focus now
+    const models = l.models || [], mms = l.mmprojs || [], mtps = l.mtpDrafts || [];
+    el.dlFilesHead.textContent = `${l.repo} — ${models.length} model file(s)`;
+    el.dlOptions.innerHTML = "";
+    el.dlFileList.innerHTML = "";
+    if (!models.length) {
+      el.dlFileList.textContent = "No .gguf model files in this repository.";
+      return;
+    }
+
+    // Optional sidecars: a switch + (when several) a picker.
+    const extra = (kind, items, label, hint, defaultOn) => {
+      if (!items.length) return null;
+      const wrap = document.createElement("div");
+      wrap.className = "dl-opt";
+      const sw = document.createElement("input");
+      sw.type = "checkbox";
+      sw.checked = defaultOn;
+      const txt = document.createElement("div");
+      txt.className = "dl-opt-text";
+      txt.innerHTML = "";
+      const t = document.createElement("div");
+      t.className = "dl-opt-title";
+      t.textContent = label;
+      const h = document.createElement("div");
+      h.className = "field-hint";
+      h.textContent = hint;
+      txt.appendChild(t);
+      txt.appendChild(h);
+      const sel = document.createElement("select");
+      items.forEach((f) => {
+        const o = document.createElement("option");
+        o.value = f.path;
+        o.textContent = `${f.name} · ${sizeLabel(f.size)}`;
+        sel.appendChild(o);
+      });
+      sel.hidden = items.length === 1;
+      wrap.appendChild(sw);
+      wrap.appendChild(txt);
+      wrap.appendChild(sel);
+      el.dlOptions.appendChild(wrap);
+      sw.addEventListener("change", refreshButtons);
+      sel.addEventListener("change", refreshButtons);
+      return { sw, sel, items };
+    };
+    const vision = extra("vision", mms, "Include the vision projector (images)", "Needed for image input; adds the size shown.", true);
+    const mtp = extra("mtp", mtps, "Include the MTP draft sidecar", "For speculative decoding; most builds do not need it.", false);
+
+    const sidecarBytes = () => {
+      let n = 0;
+      [vision, mtp].forEach((x) => {
+        if (x && x.sw.checked) n += (x.items.find((f) => f.path === x.sel.value) || {}).size || 0;
+      });
+      return n;
+    };
+    const buttons = [];
+    function refreshButtons() {
+      buttons.forEach(({ btn, m }) => { btn.textContent = `Download · ${sizeLabel(m.size + sidecarBytes())}`; });
+    }
+
+    models.forEach((m) => {
       const row = document.createElement("div");
-      row.className = "dl-row dl-" + (r.fit || "too-big");
+      row.className = "dl-row";
       const left = document.createElement("div");
       const title = document.createElement("div");
       title.className = "dl-name";
-      title.textContent = (e.starter ? "★ " : "") + (e.name || e.id);
+      if (m.quant) {
+        const q = document.createElement("span");
+        q.className = "chip chip-quant";
+        q.textContent = m.quant;
+        title.appendChild(q);
+      }
+      title.appendChild(document.createTextNode(" " + m.name));
       const meta = document.createElement("div");
       meta.className = "dl-meta";
-      const tags = [e.vision ? "vision" : "", e.mtp ? "MTP" : ""].filter(Boolean).join(" · ");
-      meta.textContent = `${fmtBytes(e.bytes)} · ~${Math.round((e.context || 0) / 1000)}k ctx`
-        + `${tags ? " · " + tags : ""} · ${r.why || ""}`;
+      meta.textContent = m.parts > 1 ? `${sizeLabel(m.size)} · ${m.parts} parts — multi-part files are not downloadable yet` : sizeLabel(m.size);
       left.appendChild(title);
       left.appendChild(meta);
       row.appendChild(left);
       const btn = document.createElement("button");
       btn.className = "tiny";
-      btn.textContent = "Download";
-      btn.addEventListener("click", () => { el.dlRef.value = e.repo || ""; call("StartDownload", e.repo || "", "", ""); });
+      btn.disabled = m.parts > 1;
+      btn.addEventListener("click", () => {
+        call("StartDownload", l.repo, m.path,
+          vision && vision.sw.checked ? vision.sel.value : "none",
+          mtp && mtp.sw.checked ? mtp.sel.value : "none");
+      });
       row.appendChild(btn);
-      el.dlList.appendChild(row);
+      buttons.push({ btn, m });
+      el.dlFileList.appendChild(row);
     });
+    refreshButtons();
   }
 
   function openDownload() {
@@ -547,6 +741,8 @@
     const a = app();
     if (!a) return;
     Promise.resolve(a.GetCatalog()).then(renderDownloadCatalog).catch(() => {});
+    // Pull the newest catalog from the repository, then redraw (best effort).
+    Promise.resolve(a.RefreshCatalog()).then(renderDownloadCatalog).catch(() => {});
     Promise.resolve(a.GetHFTokenStatus()).then((s) => {
       el.dlTokenMsg.textContent = s && s.set ? "token configured (" + s.source + ")" : "";
     }).catch(() => {});
@@ -569,8 +765,47 @@
     el.dlCancel.hidden = !active;
   }
 
+  // Status-bar badge: downloads keep running when the dialog is closed.
+  let badgeDoneUntil = 0;
+  let badgeLastStatus = "";
+
+  function renderDownloadBadge() {
+    const d = (snap && snap.download) || {};
+    const active = d.active || d.status === "downloading" || d.status === "verifying";
+    const now = Date.now();
+    if (badgeLastStatus !== d.status) {
+      if (d.status === "done" || d.status === "error") badgeDoneUntil = now + 20000;
+      badgeLastStatus = d.status;
+    }
+    const b = el.dlBadge;
+    b.className = "dl-badge";
+    b.innerHTML = "";
+    const name = (d.file || "").split("/").pop();
+    if (active) {
+      const pct = Math.max(0, Math.min(100, d.percent || 0));
+      b.textContent = `⬇ ${name} · ${pct.toFixed(0)}%` + (d.speedBps ? ` · ${fmtBytes(d.speedBps)}/s` : "");
+      const bar = document.createElement("span");
+      bar.className = "bar";
+      bar.style.width = pct + "%";
+      b.appendChild(bar);
+      b.hidden = false;
+    } else if (d.status === "error" && now < badgeDoneUntil) {
+      b.className = "dl-badge error";
+      b.textContent = "⚠ download failed — click for details";
+      b.hidden = false;
+    } else if (d.status === "done" && now < badgeDoneUntil) {
+      b.className = "dl-badge done";
+      b.textContent = `✓ ${name} installed`;
+      b.hidden = false;
+    } else {
+      b.hidden = true;
+    }
+  }
+  setInterval(renderDownloadBadge, 2000); // lets the done/error badge expire
+
   function render() {
     if (!snap) return;
+    renderDownloadBadge();
     if (!bootPrinted) {
       bootPrinted = true;
       (snap.bootLines || []).forEach((line) => appendLog(line));
@@ -1052,9 +1287,14 @@
     el.doctorRefresh.addEventListener("click", () => call("RunDoctor"));
     el.dlOpen.addEventListener("click", openDownload);
     el.dlClose.addEventListener("click", () => { el.dlModal.hidden = true; });
-    el.dlStart.addEventListener("click", () => {
-      call("StartDownload", el.dlRef.value.trim(), el.dlFile.value.trim(), "");
-    });
+    el.dlBrowse.addEventListener("click", openFullCatalog);
+    el.catClose.addEventListener("click", () => { el.catModal.hidden = true; });
+    el.catModal.addEventListener("mousedown", (e) => { if (e.target === el.catModal) el.catModal.hidden = true; });
+    el.dlBadge.addEventListener("click", openDownload);
+    el.dlFind.addEventListener("click", findRepoFiles);
+    el.dlRef.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); findRepoFiles(); } });
+    // Pasting a link looks it up right away.
+    el.dlRef.addEventListener("paste", () => setTimeout(() => { if (el.dlRef.value.includes("/")) findRepoFiles(); }, 0));
     el.dlCancel.addEventListener("click", () => call("CancelDownload"));
     el.dlTokenSave.addEventListener("click", () => {
       const a = app();

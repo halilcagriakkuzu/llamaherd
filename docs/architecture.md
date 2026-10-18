@@ -51,7 +51,7 @@ LlamaHerd is **one Go binary** with two entry modes that share a single controll
 | `store/` | GGUF header parsing, recursive scan, `configs/` and `library/` persistence, categories |
 | `settings/` | path/env/config resolution, WSL detection, Hugging Face token |
 | `doctor/` | environment checks (CLI, API, GUI) |
-| `hf/` | Hugging Face client, hardware-scored catalog, resumable verified downloads |
+| `hf/` | Hugging Face client, hardware-scored model catalog (`catalog.json`, refreshed from GitHub), repo file listing, resumable verified downloads |
 | `schema/` | shared types: `Config`, `Preset`, `Model`, `Server` |
 | `internal/ggufgen/` | synthetic GGUF files for tests |
 | `frontend/dist/` | the UI (no framework, no build step) |
@@ -70,7 +70,7 @@ Exported `App` methods are bound to the frontend as `window.go.main.App.<Method>
 | Server | `StartServer`, `StopServer`, `ForceStopLlama`, `Log(line)` |
 | Setup | `SetPaths(serverBin, modelsDir)`, `GetDoctor`, `RunDoctor` |
 | Library | `RenameModel(ref, name, alias)`, `SetModelCategory(ref, path)`, `CreateCategory(path)`, `RenameCategory(path, name)`, `DeleteCategory(path)` |
-| Downloads | `GetCatalog`, `StartDownload(ref, file, vision)`, `CancelDownload`, `GetHFTokenStatus`, `SetHFToken(token)` |
+| Downloads | `GetCatalog`, `GetFullCatalog`, `RefreshCatalog`, `ListRepoFiles(ref)`, `StartDownload(ref, file, vision, mtp)`, `CancelDownload`, `GetHFTokenStatus`, `SetHFToken(token)` |
 | llama.cpp | `GetLlamaPanel`, `CheckLlamaUpdates`, `UpdateLlamaCpp`, `CancelLlamaUpdate` |
 
 Events: `state` (a full `Snapshot`) and `log` (one line). Methods that can fail return an

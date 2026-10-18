@@ -704,6 +704,8 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
   flex: none;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   height: 26px;
   padding: 0 18px;
   border-top: 1px solid var(--border);
@@ -711,7 +713,7 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
   color: var(--muted);
   font-size: 11px;
 }
-#statusInfo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#statusInfo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #statusInfo[data-status="running"] { color: var(--green); }
 #statusInfo[data-status="crashed"] { color: var(--red); }
 
@@ -791,8 +793,22 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
 .dl-row.dl-too-big { opacity: 0.55; }
 .dl-name { font-weight: 600; }
 .dl-row.dl-gpu .dl-name::before { content: "\25CF "; color: var(--green); }
-.dl-row.dl-cpu .dl-name::before { content: "\25CB "; color: var(--amber); }
+.dl-row.dl-cpu .dl-name::before { content: "\25CB "; color: var(--muted); }
 .dl-meta { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+#dlCatalogBox { margin-bottom: 6px; }
+#dlCatalogBox > summary { cursor: pointer; font-size: 12.5px; color: var(--muted); padding: 4px 0 8px; list-style: none; }
+#dlCatalogBox > summary::before { content: "▸ "; }
+#dlCatalogBox[open] > summary::before { content: "▾ "; }
+#dlCatalogBox > summary:hover { color: var(--text); }
+.dl-files-head { margin: 10px 0 8px; font-weight: 600; font-size: 12.5px; word-break: break-all; }
+.dl-options { display: grid; gap: 8px; margin-bottom: 10px; }
+.dl-opt { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.dl-opt-text { flex: 1; min-width: 0; }
+.dl-opt-title { font-weight: 600; font-size: 12.5px; }
+.dl-opt select { width: auto; max-width: 220px; height: 28px; font-size: 12px; }
+.chip-quant { margin-right: 4px; color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+#dlFileList { max-height: 260px; overflow-y: auto; }
+.dl-row.dl-hybrid .dl-name::before { content: "\25D0 "; color: var(--amber); }
 .dl-progress { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
 #dlBarOuter { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
 #dlBarInner { height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width 0.2s ease; }
@@ -812,3 +828,38 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
   #left { flex-basis: 270px; }
   .brand-sub { display: none; }
 }
+
+/* ---- download badge (status bar), picks, full catalog ---- */
+.dl-badge {
+  flex: none;
+  height: 20px;
+  max-width: 46%;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+}
+.dl-badge.done { background: var(--green-soft); color: var(--green); }
+.dl-badge.error { background: var(--red-soft); color: var(--red); }
+.dl-badge .bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); }
+
+.dl-role { margin: 10px 0 4px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.dl-role:first-child { margin-top: 0; }
+.dl-browse { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.dl-browse .modal-text { margin: 0; }
+.modal-wide { width: min(760px, 94vw); }
+.cat-list { max-height: 62vh; overflow-y: auto; padding-right: 4px; }
+.cat-fam { margin: 14px 0 6px; font-size: 12px; font-weight: 700; color: var(--text); }
+.cat-fam:first-child { margin-top: 0; }
+.cat-fam small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+.dl-row.dl-none { opacity: 0.55; }
+.dl-row.dl-none .dl-name::before { content: "\2715 "; color: var(--red); }
+.dl-fit { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+#catModal { z-index: 110; }

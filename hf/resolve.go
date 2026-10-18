@@ -13,7 +13,7 @@ var shardRe = regexp.MustCompile(`-\d{5}-of-\d{5}\.gguf$`)
 // an mmproj sidecar and not a multi-part shard).
 func IsModelFile(path string) bool {
 	b := strings.ToLower(base(path))
-	if !strings.HasSuffix(b, ".gguf") || strings.Contains(b, "mmproj") {
+	if !strings.HasSuffix(b, ".gguf") || strings.Contains(b, "mmproj") || IsMTPDraftFile(path) {
 		return false
 	}
 	return !shardRe.MatchString(b)
@@ -92,6 +92,10 @@ func IsMTPDraftFile(path string) bool {
 	if !strings.HasSuffix(b, ".gguf") {
 		return false
 	}
+	// unsloth ships its MTP heads as "MTP/mtp-<model>-<quant>.gguf"
+	if strings.HasPrefix(strings.ToLower(path), "mtp/") || strings.HasPrefix(b, "mtp-") {
+		return true
+	}
 	for _, frag := range []string{"fastmtp", "mtp-draft", "mtp_draft", "draft-mtp", "draft_mtp"} {
 		if strings.Contains(b, frag) {
 			return true
@@ -104,6 +108,9 @@ func IsMTPDraftFile(path string) bool {
 // given, else the smallest mmproj*.gguf (usually the F16 one is a safe default,
 // but the smallest keeps VRAM low).
 func ResolveMMProj(tree []TreeFile, want string) (TreeFile, bool) {
+	if IsNone(want) {
+		return TreeFile{}, false
+	}
 	if strings.TrimSpace(want) != "" {
 		return matchFile(tree, want)
 	}
@@ -125,6 +132,9 @@ func ResolveMMProj(tree []TreeFile, want string) (TreeFile, bool) {
 // FastMTP, a patched llama.cpp, so callers download and record them but leave
 // them disabled in presets by default.
 func ResolveMTPDraft(tree []TreeFile, want string) (TreeFile, bool) {
+	if IsNone(want) {
+		return TreeFile{}, false
+	}
 	if strings.TrimSpace(want) != "" {
 		return matchFile(tree, want)
 	}
@@ -140,3 +150,10 @@ func ResolveMTPDraft(tree []TreeFile, want string) (TreeFile, bool) {
 	sort.Slice(drafts, func(i, j int) bool { return drafts[i].Size < drafts[j].Size })
 	return drafts[0], true
 }
+
+// None is the sentinel for "do not download this optional sidecar" (vision
+// projector or MTP draft); the empty string means "use it when the repo has one".
+const None = "none"
+
+// IsNone reports whether an optional-sidecar choice means "skip it".
+func IsNone(want string) bool { return strings.EqualFold(strings.TrimSpace(want), None) }

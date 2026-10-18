@@ -15,6 +15,7 @@ import (
 	"llamaherd/api"
 	"llamaherd/control"
 	"llamaherd/doctor"
+	"llamaherd/hf"
 	"llamaherd/schema"
 	"llamaherd/settings"
 	"llamaherd/store"
@@ -200,6 +201,7 @@ func (a *App) startup(ctx context.Context) {
 	a.initBackend()
 	a.initModels()
 	a.initPresets()
+	a.initCatalog()
 
 	// Select the first loadable model, apply its first preset, then check
 	// whether a server is ALREADY listening (external).
@@ -705,6 +707,7 @@ func (a *App) startupHeadless() {
 	a.initBackend()
 	a.initModels()
 	a.initPresets()
+	a.initCatalog()
 	a.selModel = -1
 	if a.selModel < 0 {
 		for i, m := range a.models {
@@ -725,4 +728,11 @@ func (a *App) startupHeadless() {
 	}
 	a.refreshDoctor()
 	a.emitState()
+}
+
+// initCatalog activates the cached model catalog and refreshes it from the
+// repository in the background (never blocks startup, never fails it).
+func (a *App) initCatalog() {
+	hf.LoadCachedCatalog()
+	go a.RefreshCatalog()
 }

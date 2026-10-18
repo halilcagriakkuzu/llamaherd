@@ -25,6 +25,9 @@ shot advanced "status=running&tab=advanced&vision=1"
 shot llama "status=running&tab=llama"
 shot stopped "status=stopped&tab=basic&dirty=1&warn=1"
 shot download "status=stopped&modal=download"
+shot download-catalog "status=stopped&modal=catalog" 1240,900
+shot download-bg "status=running&dl=1"
+shot download-repo "status=stopped&modal=repo" 1240,980
 shot menu-model "status=running&menu=model"
 shot menu-folder "status=running&view=all&menu=folder"
 shot dialog-rename "status=running&dialog=rename"

@@ -95,6 +95,22 @@ See [`docs/configuration.md`](docs/configuration.md) for the full table. Notable
 (`configs/`, `library/`) under the OS data directory. A `serverBin` of the form
 `wsl:<distro>:/path` lets the Windows app drive a `llama-server` inside WSL.
 
+## Updating the model catalog
+
+`hf/catalog.json` is the curated download list. It is embedded in the binary **and** fetched
+by running apps from the `main` branch (`hf.DefaultCatalogURL`), so merging a change to it
+updates every install without a release.
+
+1. Edit `hf/catalog.json` (exact repo + file path, `family` to group quants) and bump `updated`.
+2. Get real numbers instead of guessing: `go run ./internal/catalogtool` reads each model's
+   GGUF header over HTTP Range and prints the file size, minimum VRAM/RAM (51200-token
+   context, q8_0 KV cache, 90 % VRAM guard) and `kvMiBPer1k` / `trainedContext`.
+   Add new repos/quants to the `families` list in that tool first.
+3. `go test ./hf` validates the file (`TestEmbeddedCatalogValid`).
+
+Only single-file quants can be listed (the downloader does not handle multi-part shards).
+Models needing a custom llama.cpp fork are not listed.
+
 ## Releases
 
 1. Update `CHANGELOG.md` (move *Unreleased* under the new version).

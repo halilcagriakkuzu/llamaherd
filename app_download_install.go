@@ -18,7 +18,7 @@ import (
 // doDownload resolves the repository, downloads the model and (when present)
 // the vision projector, then installs a tuned preset. Progress callbacks
 // update the shared state and emit at most ~6 events/second.
-func (a *App) doDownload(ctx context.Context, repo, file, visionFile string) error {
+func (a *App) doDownload(ctx context.Context, repo, file, visionFile, mtpFile string) error {
 	token := settings.HFToken()
 	destDir := filepath.Join(settings.ModelsDir(), repo)
 
@@ -74,7 +74,7 @@ func (a *App) doDownload(ctx context.Context, repo, file, visionFile string) err
 	}
 
 	var draftPath string
-	if draft, ok := hf.ResolveMTPDraft(tree, ""); ok && draft.Path != model.Path {
+	if draft, ok := hf.ResolveMTPDraft(tree, mtpFile); ok && draft.Path != model.Path {
 		p, err := hf.Download(ctx, hf.Options{
 			Repo: repo, File: draft.Path, DestDir: destDir, Token: token,
 			ExpectedSize: draft.Size, ExpectedSHA256: draft.OID,

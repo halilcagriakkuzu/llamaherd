@@ -25,8 +25,9 @@ llamaherd model move <alias> [<category/path>]      # no path = Uncategorized
 llamaherd category create|delete <a/b/c>
 llamaherd category rename <a/b/c> <new-name>
 
-llamaherd download list                    # catalog scored for this machine
-llamaherd download <owner/name> [<file>] [--vision <file>]
+llamaherd download list [--all]            # picks for this machine (--all: the whole catalog)
+llamaherd download files <owner/name>      # every .gguf of a repo with sizes (models, vision, MTP)
+llamaherd download <owner/name> <file> [--vision <f>|--no-vision] [--mtp <f>|--no-mtp]
 llamaherd download status | cancel | token [<t>|--clear]
 
 llamaherd doctor [--json]                  # environment check with fixes
@@ -38,7 +39,9 @@ llamaherd version
 | Method & path | Body / query | Purpose |
 | --- | --- | --- |
 | `GET /status` | — | full UI snapshot |
-| `GET /models`, `/presets?alias=`, `/catalog`, `/download`, `/doctor` | — | read state |
+| `GET /models`, `/presets?alias=`, `/download`, `/doctor` | — | read state |
+| `GET /catalog[?all=1]` | — | model picks for this machine (`all=1`: every catalog entry) |
+| `GET /download/files?ref=` | `owner/name` or URL | a repo's `.gguf` files grouped as models / vision / MTP |
 | `POST /open` | `{alias, preset}` | start the server |
 | `POST /stop` | — | stop the managed server |
 | `POST /save`, `/load` | — | persist / restore the current preset |
@@ -46,7 +49,8 @@ llamaherd version
 | `POST /model/rename` | `{model, name?, alias?}` | display name / alias (moves `configs/<alias>.json`) |
 | `POST /model/category` | `{model, category: [..]}` | place a model; `[]` = Uncategorized |
 | `POST /category/create`, `/rename`, `/delete` | `{path: [..], name?}` | category folders (delete keeps models) |
-| `POST /download`, `/download/cancel`, `/token` | see `api/api.go` | Hugging Face downloads / token |
+| `POST /download` | `{ref, file, vision, mtp}` | start a download (`vision`/`mtp`: `""` = repo default, `"none"` = skip, or a file) |
+| `POST /download/cancel`, `/token` | see `api/api.go` | cancel / Hugging Face token |
 
 `model` is a file path or an alias. Mutating calls return `{"ok":true}` or
 `{"ok":false,"error":"..."}`.

@@ -53,7 +53,7 @@ func ensureDaemon() error {
 
 // downloadStart POSTs a download and streams progress until it finishes.
 func downloadStart(args []string) int {
-	ref, file, vision := "", "", ""
+	ref, file, vision, mtp := "", "", "", ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--vision":
@@ -61,6 +61,15 @@ func downloadStart(args []string) int {
 				vision = args[i+1]
 				i++
 			}
+		case "--no-vision":
+			vision = "none"
+		case "--mtp":
+			if i+1 < len(args) {
+				mtp = args[i+1]
+				i++
+			}
+		case "--no-mtp":
+			mtp = "none"
 		case "--file":
 			if i+1 < len(args) {
 				file = args[i+1]
@@ -83,7 +92,7 @@ func downloadStart(args []string) int {
 		fmt.Fprintln(os.Stderr, "download: "+err.Error())
 		return 1
 	}
-	body, _, err := post("/download", map[string]string{"ref": ref, "file": file, "vision": vision})
+	body, _, err := post("/download", map[string]string{"ref": ref, "file": file, "vision": vision, "mtp": mtp})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "download: "+err.Error())
 		return 1

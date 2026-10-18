@@ -8,12 +8,27 @@
 // sha256 (LFS oid), and never leave a partial file behind on failure.
 package hf
 
-// Entry is one curated, downloadable model. File is either an exact Hub path
-// or a case-insensitive suffix (e.g. "Q4_K_M.gguf") resolved against the
-// repository's file list at download time, so the catalog survives quant
-// renames. MMProj, when set, is the matching vision projector file (same repo).
-// Vision/MTP flag capabilities up front; a pasted repo outside the catalog has
-// them auto-detected from the downloaded file (GGUF header + sidecar names).
+import (
+	"context"
+	_ "embed"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"llamaherd/settings"
+)
+
+// Entry is one curated, downloadable model file. File is the exact path inside
+// the Hub repository. MMProj, when set, is the matching vision projector file
+// (same repo). Vision/MTP flag capabilities up front; a pasted repo outside the
+// catalog has them auto-detected from the downloaded file (GGUF header + sidecar
+// names).
 type Entry struct {
 	ID         string  `json:"id"`
 	Name       string  `json:"name"`
@@ -30,80 +45,211 @@ type Entry struct {
 	Context    int     `json:"context"`       // recommended context window
 	Note       string  `json:"note"`
 	Starter    bool    `json:"starter"` // the small default offered on first run
+	// Family groups quants of one model; Recommend shows only the best quant of a
+	// family that fits (empty = its own family).
+	Family string `json:"family,omitempty"`
+	// MoE marks mixture-of-experts models: few active parameters, so they stay
+	// usable when most weights sit in system RAM.
+	MoE bool `json:"moe,omitempty"`
+	// KVMiBPer1k is how much the q8_0 KV cache grows per 1000 tokens of context
+	// and TrainedContext the model's trained window; together they tell how much
+	// context a card can hold (0 = unknown).
+	KVMiBPer1k     float64 `json:"kvMiBPer1k,omitempty"`
+	TrainedContext int     `json:"trainedContext,omitempty"`
 }
 
 // defaultContext is the ~50k context every curated entry targets.
 const defaultContext = 51200
 
-// Catalog is the curated list, ordered smallest to largest. All entries are
-// public, permissively licensed GGUF repos.
-var Catalog = []Entry{
-	{
-		ID: "qwen2.5-0.5b-instruct-q4_k_m", Name: "Qwen2.5 0.5B Instruct (Q4_K_M)",
-		Repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF", File: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
-		ParamsB: 0.5, Quant: "Q4_K_M", Bytes: 491400032,
-		MinVRAMGiB: 1.0, MinRAMGiB: 2.0, Context: defaultContext, Starter: true,
-		Note: "Apache-2.0; tiny starter model.",
-	},
-	{
-		ID: "qwen2.5-1.5b-instruct-q4_k_m", Name: "Qwen2.5 1.5B Instruct (Q4_K_M)",
-		Repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF", File: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-		ParamsB: 1.5, Quant: "Q4_K_M", Bytes: 1117320736,
-		MinVRAMGiB: 2.0, MinRAMGiB: 3.5, Context: defaultContext,
-		Note: "Apache-2.0; fast general chat.",
-	},
-	{
-		ID: "llama-3.2-3b-instruct-q4_k_m", Name: "Llama 3.2 3B Instruct (Q4_K_M)",
-		Repo: "bartowski/Llama-3.2-3B-Instruct-GGUF", File: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-		ParamsB: 3, Quant: "Q4_K_M", Bytes: 2019377696,
-		MinVRAMGiB: 3.5, MinRAMGiB: 5.0, Context: defaultContext,
-		Note: "Llama 3.2 Community License.",
-	},
-	{
-		ID: "gemma-3-4b-it-q4_k_m", Name: "Gemma 3 4B IT (Q4_K_M, vision)",
-		Repo: "ggml-org/gemma-3-4b-it-GGUF", File: "gemma-3-4b-it-Q4_K_M.gguf",
-		MMProj:  "mmproj-model-f16.gguf",
-		ParamsB: 4, Quant: "Q4_K_M", Bytes: 2489757856 + 851251104,
-		MinVRAMGiB: 5.5, MinRAMGiB: 6.5, Vision: true, Context: defaultContext,
-		Note: "Gemma Terms of Use; image + text.",
-	},
-	{
-		ID: "qwen2.5-7b-instruct-q4_k_m", Name: "Qwen2.5 7B Instruct (Q4_K_M)",
-		Repo: "bartowski/Qwen2.5-7B-Instruct-GGUF", File: "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
-		ParamsB: 7, Quant: "Q4_K_M", Bytes: 4683074240,
-		MinVRAMGiB: 8.0, MinRAMGiB: 9.0, Context: defaultContext,
-		Note: "Apache-2.0; strong text quality.",
-	},
-	{
-		ID: "qwen3-8b-q4_k_m", Name: "Qwen3 8B (Q4_K_M)",
-		Repo: "Qwen/Qwen3-8B-GGUF", File: "Qwen3-8B-Q4_K_M.gguf",
-		ParamsB: 8, Quant: "Q4_K_M", Bytes: 5027783488,
-		MinVRAMGiB: 8.5, MinRAMGiB: 10.0, Context: defaultContext,
-		Note: "Apache-2.0; reasoning-capable.",
-	},
-	{
-		ID: "qwen2.5-vl-7b-instruct-q4_k_m", Name: "Qwen2.5-VL 7B Instruct (Q4_K_M, vision)",
-		Repo: "unsloth/Qwen2.5-VL-7B-Instruct-GGUF", File: "Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
-		MMProj:  "mmproj-F16.gguf",
-		ParamsB: 7, Quant: "Q4_K_M", Bytes: 4683072384 + 1354163040,
-		MinVRAMGiB: 10.5, MinRAMGiB: 11.0, Vision: true, Context: defaultContext,
-		Note: "Apache-2.0; image understanding.",
-	},
+// CatalogSchema is the newest catalog file format this build understands.
+const CatalogSchema = 1
+
+// DefaultCatalogURL is where the app looks for a newer catalog (the file in the
+// repository's main branch), so the model list can be updated without a release.
+// LLAMAHERD_CATALOG_URL overrides it ("off" disables the network refresh).
+const DefaultCatalogURL = "https://raw.githubusercontent.com/halilcagriakkuzu/llamaherd/main/hf/catalog.json"
+
+//go:embed catalog.json
+var embeddedCatalog []byte
+
+// CatalogInfo says where the active catalog came from.
+type CatalogInfo struct {
+	Source  string `json:"source"` // "embedded" | "remote" | "cache"
+	Updated string `json:"updated"`
+	Count   int    `json:"count"`
+}
+
+var cat struct {
+	mu      sync.RWMutex
+	entries []Entry
+	info    CatalogInfo
+}
+
+func init() {
+	entries, updated, _, err := parseCatalog(embeddedCatalog)
+	if err != nil {
+		panic("hf: embedded catalog is invalid: " + err.Error()) // guarded by TestEmbeddedCatalogValid
+	}
+	cat.entries = entries
+	cat.info = CatalogInfo{Source: "embedded", Updated: updated, Count: len(entries)}
+}
+
+// Entries returns a copy of the active catalog.
+func Entries() []Entry {
+	cat.mu.RLock()
+	defer cat.mu.RUnlock()
+	return append([]Entry(nil), cat.entries...)
+}
+
+// Info describes the active catalog.
+func Info() CatalogInfo {
+	cat.mu.RLock()
+	defer cat.mu.RUnlock()
+	return cat.info
+}
+
+type catalogFile struct {
+	Schema  int     `json:"schema"`
+	Updated string  `json:"updated"`
+	Entries []Entry `json:"entries"`
+}
+
+// parseCatalog decodes and validates a catalog file. Invalid entries are
+// skipped (reported in skipped) so one bad row never hides the whole list; an
+// unreadable file, a newer schema or no valid entry is an error.
+func parseCatalog(data []byte) (entries []Entry, updated string, skipped []string, err error) {
+	var f catalogFile
+	if err = json.Unmarshal(data, &f); err != nil {
+		return nil, "", nil, fmt.Errorf("catalog: %w", err)
+	}
+	if f.Schema < 1 || f.Schema > CatalogSchema {
+		return nil, "", nil, fmt.Errorf("catalog: unsupported schema %d (this build reads up to %d)", f.Schema, CatalogSchema)
+	}
+	seen := map[string]bool{}
+	for _, e := range f.Entries {
+		if msg := validEntry(e, seen); msg != "" {
+			skipped = append(skipped, fmt.Sprintf("%s: %s", e.ID, msg))
+			continue
+		}
+		seen[e.ID] = true
+		if e.Context == 0 {
+			e.Context = defaultContext
+		}
+		entries = append(entries, e)
+	}
+	if len(entries) == 0 {
+		return nil, "", skipped, fmt.Errorf("catalog: no valid entries")
+	}
+	return entries, f.Updated, skipped, nil
+}
+
+func validEntry(e Entry, seen map[string]bool) string {
+	switch {
+	case e.ID == "" || seen[e.ID]:
+		return "missing or duplicate id"
+	case !strings.Contains(e.Repo, "/") || strings.ContainsAny(e.Repo, " \t"):
+		return "repo must be owner/name"
+	case !strings.HasSuffix(strings.ToLower(e.File), ".gguf"):
+		return "file must be a .gguf path"
+	case e.Bytes <= 0 || e.ParamsB <= 0 || e.MinVRAMGiB <= 0 || e.MinRAMGiB <= 0:
+		return "bytes, paramsB, minVramGiB and minRamGiB must be positive"
+	}
+	return ""
+}
+
+// CachePath is where the last downloaded catalog is kept.
+func CachePath() string { return filepath.Join(settings.DataDir(), "catalog.json") }
+
+// CatalogURL returns the remote catalog location ("" when disabled).
+func CatalogURL() string {
+	v := strings.TrimSpace(os.Getenv("LLAMAHERD_CATALOG_URL"))
+	switch strings.ToLower(v) {
+	case "off", "none", "disabled":
+		return ""
+	case "":
+		return DefaultCatalogURL
+	}
+	return v
+}
+
+// LoadCachedCatalog activates the cached remote catalog if it is valid and not
+// older than the embedded one. Safe to call at startup without network.
+func LoadCachedCatalog() {
+	data, err := os.ReadFile(CachePath())
+	if err != nil {
+		return
+	}
+	entries, updated, _, err := parseCatalog(data)
+	if err != nil || updated < Info().Updated {
+		return
+	}
+	cat.mu.Lock()
+	cat.entries = entries
+	cat.info = CatalogInfo{Source: "cache", Updated: updated, Count: len(entries)}
+	cat.mu.Unlock()
+}
+
+// RefreshCatalog downloads the remote catalog, activates it when valid and not
+// older than the active one, and caches it. A failure leaves the active catalog
+// untouched. It reports whether the active catalog changed.
+func RefreshCatalog(ctx context.Context) (bool, error) {
+	url := CatalogURL()
+	if url == "" {
+		return false, nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false, err
+	}
+	cl := &http.Client{Timeout: 10 * time.Second}
+	resp, err := cl.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("catalog: %s returned %s", url, resp.Status)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return false, err
+	}
+	entries, updated, _, err := parseCatalog(data)
+	if err != nil {
+		return false, err
+	}
+	if updated < Info().Updated {
+		return false, nil // never move backwards
+	}
+	cur := Info()
+	changed := cur.Source != "remote" && cur.Source != "cache" || cur.Updated != updated || cur.Count != len(entries)
+	cat.mu.Lock()
+	cat.entries = entries
+	cat.info = CatalogInfo{Source: "remote", Updated: updated, Count: len(entries)}
+	cat.mu.Unlock()
+	if err := os.MkdirAll(filepath.Dir(CachePath()), 0o755); err == nil {
+		tmp := CachePath() + ".tmp"
+		if os.WriteFile(tmp, data, 0o644) == nil {
+			_ = os.Rename(tmp, CachePath())
+		}
+	}
+	return changed, nil
 }
 
 // Starter returns the small default model offered during first run.
 func Starter() Entry {
-	for _, e := range Catalog {
+	es := Entries()
+	for _, e := range es {
 		if e.Starter {
 			return e
 		}
 	}
-	return Catalog[0]
+	return es[0]
 }
 
 // ByID returns the catalog entry with the given id.
 func ByID(id string) (Entry, bool) {
-	for _, e := range Catalog {
+	for _, e := range Entries() {
 		if e.ID == id {
 			return e, true
 		}

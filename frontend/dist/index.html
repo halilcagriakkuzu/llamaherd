@@ -353,6 +353,16 @@
       <div id="logView"></div>
     </section>
   </section>
+  <div id="catModal" class="modal" hidden>
+    <div class="modal-box modal-wide">
+      <h2 class="modal-title">All models</h2>
+      <p class="modal-text" id="catSummary"></p>
+      <div id="catList" class="cat-list"></div>
+      <div class="modal-actions">
+        <button id="catClose" class="tiny">Close</button>
+      </div>
+    </div>
+  </div>
   <div id="editModal" class="modal" hidden>
     <div class="modal-box">
       <h2 class="modal-title" id="editTitle"></h2>
@@ -386,15 +396,26 @@
   <div id="dlModal" class="modal" hidden>
     <div class="modal-box">
       <h2 class="modal-title">Download a model</h2>
-      <p class="modal-text" id="dlSummary">Recommended for this machine:</p>
-      <div id="dlList" class="dl-list"></div>
+      <details id="dlCatalogBox" open>
+        <summary><span id="dlSummary">Recommended for this machine</span></summary>
+        <div id="dlList" class="dl-list"></div>
+        <div class="dl-browse">
+          <span id="dlHidden" class="modal-text"></span>
+          <button id="dlBrowse" class="tiny">Browse all models…</button>
+        </div>
+      </details>
       <h3 class="llama-h">From the Hugging Face Hub</h3>
-      <label class="fl" for="dlRef">Repo or URL <span class="flag">owner/name</span></label>
-      <input id="dlRef" spellcheck="false" placeholder="Qwen/Qwen2.5-7B-Instruct-GGUF">
-      <label class="fl" for="dlFile">File <span class="flag">optional</span></label>
-      <input id="dlFile" spellcheck="false" placeholder="default: best Q4_K_M .gguf">
+      <div class="fieldrow">
+        <input id="dlRef" spellcheck="false" placeholder="Paste a repo or link — owner/name or https://huggingface.co/…">
+        <button id="dlFind" class="tiny soft">Find files</button>
+      </div>
+      <div id="dlFiles" hidden>
+        <div id="dlFilesHead" class="dl-files-head"></div>
+        <div id="dlOptions" class="dl-options"></div>
+        <div id="dlFileList" class="dl-list"></div>
+      </div>
       <div class="modal-actions">
-        <button id="dlStart" class="btn-start">Download</button>
+        <span id="dlMsg" class="modal-msg"></span>
         <button id="dlClose" class="tiny">Close</button>
       </div>
       <details id="dlTokenBox">
@@ -417,6 +438,7 @@
 
 <footer id="statusBar">
   <span id="statusInfo">llama-server process control</span>
+  <button id="dlBadge" class="dl-badge" hidden title="Open downloads"></button>
 </footer>
 
 <script src="main.js"></script>

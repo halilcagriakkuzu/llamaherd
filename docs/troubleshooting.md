@@ -12,4 +12,5 @@ folder, disk space and API port, and prints a fix for each failure.
 | **Download fails / verification fails** | Failed downloads keep a `.part` file and resume; a sha256 mismatch deletes it. Private/gated repos need `llamaherd download token <token>`. `llamaherd download status` shows the error. |
 | **Can't reach the server from Windows** | The WSL IP row is only filled inside WSL and the server binds `127.0.0.1`; see [windows-and-wsl.md](windows-and-wsl.md). |
 | **Windows shortcut shows a blank icon** | Re-run `scripts/make-windows-shortcut.ps1`; if Explorer still caches the old icon, restart Explorer once. |
+| **The download list looks outdated** | The app refreshes it from GitHub (`LLAMAHERD_CATALOG_URL`); offline it uses the cached or embedded copy. |
 | **Rename refused: "stop the running server"** | A model's alias can't change while its server runs — stop it first. |

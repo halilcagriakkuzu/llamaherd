@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -52,13 +53,41 @@ func (a *App) DownloadJSON() ([]byte, error) {
 
 // CatalogJSON returns the curated catalog scored against this machine
 // (control API GET /catalog).
-func (a *App) CatalogJSON() ([]byte, error) {
+func (a *App) CatalogJSON(all bool) ([]byte, error) {
+	if all {
+		return json.Marshal(fullCatalogView())
+	}
 	return json.Marshal(catalogView())
 }
 
 // GetCatalog returns the curated catalog scored against this machine (Wails
 // binding for the download panel).
 func (a *App) GetCatalog() map[string]any {
+	return catalogView()
+}
+
+// GetFullCatalog returns every catalog entry scored for this machine, including
+// the ones that do not fit (Wails binding for the "browse all" screen).
+func (a *App) GetFullCatalog() map[string]any {
+	return fullCatalogView()
+}
+
+var catalogRefreshAt time.Time
+
+// RefreshCatalog fetches the newest model catalog from the repository's main
+// branch (at most every 10 minutes) and reports the active catalog's source.
+// Network errors are not fatal: the embedded/cached catalog stays in use.
+func (a *App) RefreshCatalog() map[string]any {
+	if time.Since(catalogRefreshAt) > 10*time.Minute {
+		catalogRefreshAt = time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if changed, err := hf.RefreshCatalog(ctx); err != nil {
+			a.Log("catalog: refresh failed (using " + hf.Info().Source + " copy): " + err.Error())
+		} else if changed {
+			a.Log(fmt.Sprintf("catalog: updated to %s (%d models)", hf.Info().Updated, hf.Info().Count))
+		}
+	}
 	return catalogView()
 }
 
@@ -71,11 +100,27 @@ func (a *App) GetHFTokenStatus() map[string]any {
 func catalogView() map[string]any {
 	vram := control.TotalVramMB()
 	ram := totalRAMMB()
+	recs := hf.Recommend(vram, ram)
 	return map[string]any{
 		"vramMB":  vram,
 		"ramMB":   ram,
-		"entries": hf.Recommend(vram, ram),
+		"picks":   hf.Picks(recs),
+		"fitting": len(recs),        // models that suit this machine
+		"total":   hf.FamilyCount(), // models in the catalog
+		"info":    hf.Info(),        // where the catalog came from
 		"starter": hf.Starter(),
+	}
+}
+
+// fullCatalogView lists every catalog entry, fitting or not.
+func fullCatalogView() map[string]any {
+	vram := control.TotalVramMB()
+	ram := totalRAMMB()
+	return map[string]any{
+		"vramMB":  vram,
+		"ramMB":   ram,
+		"entries": hf.Browse(vram, ram),
+		"info":    hf.Info(),
 	}
 }
 
@@ -117,3 +162,21 @@ func (a *App) CancelDownload() error {
 
 // totalRAMMB is the cross-platform total system RAM (control.TotalRAMMB).
 func totalRAMMB() int { return control.TotalRAMMB() }
+
+// ListRepoFiles lists the .gguf files of a Hugging Face repository (models,
+// vision projectors, MTP drafts) so the UI can offer them as a choice. ref is
+// "owner/name" or an hf.co URL.
+func (a *App) ListRepoFiles(ref string) (hf.RepoListing, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return hf.ListRepo(ctx, ref, hf.Token())
+}
+
+// RepoFilesJSON is ListRepoFiles for the control API (GET /download/files).
+func (a *App) RepoFilesJSON(ref string) ([]byte, error) {
+	l, err := a.ListRepoFiles(ref)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(l)
+}

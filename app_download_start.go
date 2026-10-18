@@ -10,10 +10,11 @@ import (
 // StartDownload begins downloading a Hugging Face model. ref may be
 // "owner/name", an "owner/name/file.gguf" path, or a full hf.co URL; file is
 // optional when ref already includes it. visionFile optionally pins the mmproj
-// sidecar; otherwise the repository's projector is used when present. The
+// sidecar and mtpFile the MTP draft sidecar; for both, "" means "use the
+// repository's one when present" and "none" skips it. The
 // download runs in the background and reports via Snapshot.Download /
 // GET /download.
-func (a *App) StartDownload(ref, file, visionFile string) error {
+func (a *App) StartDownload(ref, file, visionFile, mtpFile string) error {
 	repo, embedded := hf.ParseRef(ref)
 	if file == "" {
 		file = embedded
@@ -35,19 +36,19 @@ func (a *App) StartDownload(ref, file, visionFile string) error {
 		*d = DownloadState{Active: true, Repo: repo, File: file, Status: "downloading", Files: []string{}}
 	})
 	a.Log(fmt.Sprintf("hf: downloading %s %s", repo, file))
-	go a.runDownloadJob(ctx, repo, file, visionFile)
+	go a.runDownloadJob(ctx, repo, file, visionFile, mtpFile)
 	a.emitState()
 	return nil
 }
 
 // runDownloadJob performs the download, then finalises the shared state.
-func (a *App) runDownloadJob(ctx context.Context, repo, file, visionFile string) {
+func (a *App) runDownloadJob(ctx context.Context, repo, file, visionFile, mtpFile string) {
 	defer func() {
 		a.dlMu.Lock()
 		a.dlCancel = nil
 		a.dlMu.Unlock()
 	}()
-	err := a.doDownload(ctx, repo, file, visionFile)
+	err := a.doDownload(ctx, repo, file, visionFile, mtpFile)
 	switch {
 	case err == nil:
 		a.setDownload(func(d *DownloadState) {

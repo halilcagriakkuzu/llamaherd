@@ -39,6 +39,7 @@ The file is written with `0600` permissions (it can hold the API token). On Wind
 | `LLAMAHERD_CONFIG` | config-file path |
 | `LLAMAHERD_DATA_DIR`, `LLAMAHERD_CONFIGS_DIR`, `LLAMAHERD_LIBRARY_DIR` | where `configs/` and `library/` live |
 | `LLAMAHERD_MIN_LLAMA_BUILD` | minimum llama.cpp build that `doctor` accepts |
+| `LLAMAHERD_CATALOG_URL` | model-catalog source (default: `hf/catalog.json` on the repo's `main` branch; `off` disables the network refresh) |
 | `HF_TOKEN`, `HUGGING_FACE_HUB_TOKEN`, `HF_ENDPOINT` | Hugging Face token / mirror |
 
 `configs/` and `library/` default to a per-user data dir (`~/.local/share/llamaherd`,
@@ -73,3 +74,18 @@ the file name, so renaming the alias keeps the same library entry.
 For private or gated repos, in order: `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`, a `0600`
 `hf_token` file next to `config.json` (set it with `llamaherd download token <token>` or the
 download dialog), then `~/.cache/huggingface/token`. It is never written into configs.
+
+## Model catalog
+
+The download dialog's recommendations come from `hf/catalog.json`. A copy is embedded in the
+binary; on start and when the dialog opens the app fetches the file from the repository's
+`main` branch (at most every 10 minutes), validates it and caches it as `catalog.json` in the
+data dir, so the model list can be updated **without a new release**. Offline, or when the
+fetch fails, the cached or embedded copy is used. An older or invalid file never replaces the
+active catalog.
+
+Which entries are shown depends on your hardware: a model is hidden unless it fits the GPU,
+fits partly (at least half of its weights in VRAM, the rest in RAM) or is small enough for
+CPU-only use. The dialog highlights up to five (best quality, vision, longest context, MTP,
+lightweight); **Browse all models…** lists the whole catalog. Maintainers: see
+[`AGENTS.md`](../AGENTS.md#updating-the-model-catalog).
