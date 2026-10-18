@@ -79,14 +79,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
-      - name: Windows toolchain (MSYS2 / mingw for cgo)
-        if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: mingw-w64-x86_64-gcc
-
       - name: Build (non-Windows)
         if: runner.os != 'Windows'
         shell: bash
@@ -96,14 +88,17 @@ jobs:
           cp assets/llamaherd.png LICENSE README.md dist/package/
           [ -d configs ] && cp -r configs dist/package/ || true
 
+      # Wails v2 on Windows needs no cgo (WebView2 loader is embedded).
       - name: Build (Windows)
         if: runner.os == 'Windows'
-        shell: msys2 {0}
+        shell: pwsh
+        env:
+          CGO_ENABLED: "0"
         run: |
-          mkdir -p dist/package
-          go build -tags "${{ matrix.tags }}" -ldflags "-X main.version=${VERSION}" -o "dist/package/${{ matrix.bin }}" .
-          cp assets/llamaherd.png LICENSE README.md dist/package/
-          [ -d configs ] && cp -r configs dist/package/ || true
+          New-Item -ItemType Directory -Force dist/package | Out-Null
+          go build -tags "${{ matrix.tags }}" -ldflags "-X main.version=$env:VERSION" -o "dist/package/${{ matrix.bin }}" .
+          Copy-Item assets/llamaherd.png, LICENSE, README.md dist/package/
+          if (Test-Path configs) { Copy-Item -Recurse configs dist/package/ }
 
       - name: Package (tar.gz)
         if: runner.os != 'Windows'

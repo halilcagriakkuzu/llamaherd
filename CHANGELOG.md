@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Windows release build no longer needs MSYS2 (cgo-free, fixes `go: command not found`).
 - Release workflow: link `UniformTypeIdentifiers` on macOS (darwin/arm64 build
   failed), use the `macos-15-intel` runner (`macos-13` was retired), mark macOS
   and Windows as best-effort, and publish the release even if those fail.
