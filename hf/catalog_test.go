@@ -35,6 +35,9 @@ func TestEmbeddedCatalogValid(t *testing.T) {
 		if e.MinRAMGiB < float64(e.Bytes)/gib {
 			t.Errorf("%s: minRamGiB %.1f is below the file size %.1f GiB", e.ID, e.MinRAMGiB, float64(e.Bytes)/gib)
 		}
+		if e.Quality <= 0 {
+			t.Errorf("%s: set a quality score (see hf.qualityScore for the default formula)", e.ID)
+		}
 		if e.MMProj != "" && !e.Vision {
 			t.Errorf("%s: has an mmproj but vision=false", e.ID)
 		}
@@ -164,5 +167,21 @@ func TestLoadCachedCatalogAndOffSwitch(t *testing.T) {
 	LoadCachedCatalog()
 	if info := Info(); info.Source != "cache" || info.Updated != "2098-05-05" {
 		t.Errorf("cache not loaded: %+v", info)
+	}
+}
+
+func TestQualityFromCatalogOverridesTheFormula(t *testing.T) {
+	e := Entry{ParamsB: 27, Bytes: 12 << 30, Quality: 99}
+	if qualityScore(e) != 99 {
+		t.Errorf("an explicit quality must win, got %v", qualityScore(e))
+	}
+	e.Quality = 0
+	if got := qualityScore(e); got <= 0 || got >= 27 {
+		t.Errorf("computed fallback out of range: %v", got)
+	}
+	low := Entry{ParamsB: 30, Bytes: 9 << 30}   // ~2.6 bits per weight
+	high := Entry{ParamsB: 27, Bytes: 15 << 30} // ~4.8 bits per weight
+	if qualityScore(low) >= qualityScore(high) {
+		t.Error("a heavily quantized larger model must not outrank a healthy smaller one")
 	}
 }

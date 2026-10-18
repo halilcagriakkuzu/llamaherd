@@ -87,5 +87,6 @@ active catalog.
 Which entries are shown depends on your hardware: a model is hidden unless it fits the GPU,
 fits partly (at least half of its weights in VRAM, the rest in RAM) or is small enough for
 CPU-only use. The dialog highlights up to five (best quality, vision, longest context, MTP,
-lightweight); **Browse all models…** lists the whole catalog. Maintainers: see
+lightweight); **Browse all models…** lists the whole catalog. The "best quality" pick follows each
+entry's `quality` field in `catalog.json` (higher wins), so the ranking can be tuned by editing the file. Maintainers: see
 [`AGENTS.md`](../AGENTS.md#updating-the-model-catalog).

@@ -77,11 +77,15 @@ func Picks(recs []Rec) []Pick {
 	return out
 }
 
-// qualityScore ranks models by expected output quality: parameter count scaled
+// qualityScore is the entry's Quality from the catalog, or, when that is unset,
+// an estimate: parameter count scaled
 // by how much precision the quant keeps. A 1-bit 30B quant must not outrank a
 // healthy 27B one, so the factor falls from 1 at >= 4.5 bits per weight to 0.1 at
 // <= 1.8 bits (bits per weight = file size / parameters).
 func qualityScore(e Entry) float64 {
+	if e.Quality > 0 {
+		return e.Quality
+	}
 	if e.ParamsB <= 0 {
 		return 0
 	}

@@ -102,6 +102,9 @@ by running apps from the `main` branch (`hf.DefaultCatalogURL`), so merging a ch
 updates every install without a release.
 
 1. Edit `hf/catalog.json` (exact repo + file path, `family` to group quants) and bump `updated`.
+   `quality` ranks entries for the "best quality" pick (higher wins; only the order matters). The
+   shipped values are parameters × a precision factor (1.0 at ≥ 4.5 bits/weight, 0.1 at ≤ 1.8);
+   overwrite them freely, `0`/missing falls back to that formula.
 2. Get real numbers instead of guessing: `go run ./internal/catalogtool` reads each model's
    GGUF header over HTTP Range and prints the file size, minimum VRAM/RAM (51200-token
    context, q8_0 KV cache, 90 % VRAM guard) and `kvMiBPer1k` / `trainedContext`.

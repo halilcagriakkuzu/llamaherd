@@ -30,13 +30,17 @@ import (
 // catalog has them auto-detected from the downloaded file (GGUF header + sidecar
 // names).
 type Entry struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	Repo       string  `json:"repo"`
-	File       string  `json:"file"`
-	MMProj     string  `json:"mmproj,omitempty"`
-	ParamsB    float64 `json:"paramsB"`
-	Quant      string  `json:"quant"`
+	ID      string  `json:"id"`
+	Name    string  `json:"name"`
+	Repo    string  `json:"repo"`
+	File    string  `json:"file"`
+	MMProj  string  `json:"mmproj,omitempty"`
+	ParamsB float64 `json:"paramsB"`
+	Quant   string  `json:"quant"`
+	// Quality ranks entries for "best quality" (higher is better; any scale, only
+	// the order matters). Edit it freely in catalog.json; 0 means "compute it":
+	// parameters scaled by how much precision the quant keeps (see qualityScore).
+	Quality    float64 `json:"quality,omitempty"`
 	Bytes      int64   `json:"bytes"`      // approximate total download size
 	MinVRAMGiB float64 `json:"minVramGiB"` // recommended VRAM with ~50k context
 	MinRAMGiB  float64 `json:"minRamGiB"`  // RAM when running on CPU
