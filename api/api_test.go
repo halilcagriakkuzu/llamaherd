@@ -53,6 +53,26 @@ func (f *fake) UpdatePreset(a, n string, c schema.Config) error {
 	return nil
 }
 func (f *fake) RemovePreset(a, n string) error { f.rec("remove:" + a + "/" + n); return nil }
+func (f *fake) RenameModel(ref, name, alias string) error {
+	f.rec("rename:" + ref + "|" + name + "|" + alias)
+	return f.openErr
+}
+func (f *fake) SetModelCategory(ref string, c []string) error {
+	f.rec("setcat:" + ref + "|" + strings.Join(c, ">"))
+	return nil
+}
+func (f *fake) CreateCategory(p []string) error {
+	f.rec("catcreate:" + strings.Join(p, ">"))
+	return nil
+}
+func (f *fake) RenameCategory(p []string, n string) error {
+	f.rec("catrename:" + strings.Join(p, ">") + "|" + n)
+	return nil
+}
+func (f *fake) DeleteCategory(p []string) error {
+	f.rec("catdelete:" + strings.Join(p, ">"))
+	return nil
+}
 
 func do(t *testing.T, h http.Handler, method, url, body string, hdr map[string]string) (int, string) {
 	t.Helper()
@@ -164,5 +184,28 @@ func TestBearerTokenAuth(t *testing.T) {
 	}
 	if code, _ := do(t, h, "GET", "/status?token=s3cret", "", nil); code != 200 {
 		t.Errorf("query token = %d, want 200", code)
+	}
+}
+
+func TestLibraryEndpoints(t *testing.T) {
+	isolate(t)
+	f := &fake{}
+	h := Handler(f)
+	do(t, h, "POST", "/model/rename", `{"model":"a","name":"Nice name","alias":"nice"}`, nil)
+	do(t, h, "POST", "/model/category", `{"model":"a","category":["Qwen","3.8"]}`, nil)
+	do(t, h, "POST", "/category/create", `{"path":["Qwen","new"]}`, nil)
+	do(t, h, "POST", "/category/rename", `{"path":["Qwen","new"],"name":"old"}`, nil)
+	do(t, h, "POST", "/category/delete", `{"path":["Qwen","old"]}`, nil)
+	want := "rename:a|Nice name|nice,setcat:a|Qwen>3.8,catcreate:Qwen>new,catrename:Qwen>new|old,catdelete:Qwen>old"
+	if got := strings.Join(f.calls, ","); got != want {
+		t.Errorf("calls = %s\nwant    %s", got, want)
+	}
+	f.openErr = errors.New("alias taken")
+	_, body := do(t, h, "POST", "/model/rename", `{"model":"a","alias":"x"}`, nil)
+	if !strings.Contains(body, `"ok":false`) || !strings.Contains(body, "alias taken") {
+		t.Errorf("error not surfaced: %s", body)
+	}
+	if code, _ := do(t, h, "POST", "/category/create", `{bad`, nil); code != http.StatusBadRequest {
+		t.Errorf("malformed body = %d", code)
 	}
 }

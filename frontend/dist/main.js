@@ -375,6 +375,13 @@
         here.push(i);
       }
     });
+    // Empty folders (created in the UI) exist only in snap.categories.
+    (snap.categories || []).forEach((c) => {
+      if (c.length > browsePath.length && hasPrefix(c, browsePath)) {
+        const name = c[browsePath.length];
+        if (!folders.has(name)) folders.set(name, 0);
+      }
+    });
     folders.forEach((count, name) => {
       const li = document.createElement("li");
       li.className = "folder";
@@ -385,7 +392,10 @@
       chip.textContent = count;
       li.appendChild(label);
       li.appendChild(chip);
-      li.addEventListener("click", () => { browsePath = browsePath.concat(name); renderModels(); });
+      const fpath = browsePath.concat(name);
+      li.appendChild(menuButton((x, y) => openFolderMenu(x, y, fpath)));
+      li.addEventListener("contextmenu", (e) => { e.preventDefault(); openFolderMenu(e.clientX, e.clientY, fpath); });
+      li.addEventListener("click", () => { browsePath = fpath; renderModels(); });
       el.modelList.appendChild(li);
     });
     here.forEach((i) => {
@@ -402,6 +412,8 @@
         chip.textContent = t;
         li.appendChild(chip);
       });
+      li.appendChild(menuButton((x, y) => openModelMenu(x, y, model)));
+      li.addEventListener("contextmenu", (e) => { e.preventDefault(); openModelMenu(e.clientX, e.clientY, model); });
       if (i === snap.selectedModel) li.classList.add("selected");
       li.addEventListener("click", () => call("SelectModel", i));
       el.modelList.appendChild(li);
@@ -606,6 +618,242 @@
     if (which === "llama") refreshLlama();
   }
 
+  // ---- library editing: context menu, rename / move / category dialogs ----
+
+  const ctxMenu = $("ctxMenu");
+
+  function menuButton(open) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "row-menu";
+    b.textContent = "⋯";
+    b.title = "Actions";
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const r = b.getBoundingClientRect();
+      open(r.left, r.bottom + 2);
+    });
+    return b;
+  }
+
+  function closeCtxMenu() { ctxMenu.hidden = true; ctxMenu.innerHTML = ""; }
+
+  function showCtxMenu(x, y, items) {
+    ctxMenu.innerHTML = "";
+    items.forEach((it) => {
+      if (it === "-") { ctxMenu.appendChild(document.createElement("hr")); return; }
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.label;
+      b.disabled = !!it.disabled;
+      if (it.danger) b.className = "danger";
+      b.addEventListener("click", () => { closeCtxMenu(); it.run(); });
+      ctxMenu.appendChild(b);
+    });
+    ctxMenu.hidden = false;
+    // keep the menu inside the window
+    const w = ctxMenu.offsetWidth, h = ctxMenu.offsetHeight;
+    ctxMenu.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + "px";
+    ctxMenu.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + "px";
+  }
+
+  function openModelMenu(x, y, model) {
+    const categorized = model.category && model.category.length > 0;
+    showCtxMenu(x, y, [
+      { label: "Rename…", run: () => renameModelDialog(model) },
+      { label: "Move to category…", run: () => moveModelDialog(model) },
+      { label: "Remove from category", disabled: !categorized, run: () => libCall("SetModelCategory", model.path, []) },
+    ]);
+  }
+
+  function openFolderMenu(x, y, path) {
+    showCtxMenu(x, y, [
+      { label: "Rename…", run: () => renameFolderDialog(path) },
+      { label: "New subcategory…", run: () => newFolderDialog(path) },
+      "-",
+      { label: "Delete category", danger: true, run: () => deleteFolder(path) },
+    ]);
+  }
+
+  document.addEventListener("click", (e) => { if (!ctxMenu.hidden && !ctxMenu.contains(e.target)) closeCtxMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeCtxMenu(); closeEdit(); } });
+  window.addEventListener("blur", closeCtxMenu);
+  $("modelList").addEventListener("scroll", closeCtxMenu);
+
+  // Run a bound library method; failures surface in the log (and as a rejection
+  // for dialogs that want to show the message inline).
+  function libCall(method, ...args) {
+    return Promise.resolve(app()[method](...args)).catch((err) => {
+      const msg = err && err.message ? err.message : String(err);
+      appendLog("error: " + msg);
+      throw new Error(msg);
+    });
+  }
+
+  const edit = {
+    modal: $("editModal"), title: $("editTitle"), text: $("editText"),
+    fields: $("editFields"), msg: $("editMsg"), ok: $("editOk"), cancel: $("editCancel"),
+  };
+  let editSubmit = null;
+
+  function closeEdit() { edit.modal.hidden = true; editSubmit = null; }
+
+  // spec: {title, text, submit, fields:[{key,label,hint,value,options?,mono?}], onSubmit(values)}
+  function openEdit(spec) {
+    edit.title.textContent = spec.title;
+    edit.text.textContent = spec.text || "";
+    edit.text.hidden = !spec.text;
+    edit.msg.textContent = "";
+    edit.ok.textContent = spec.submit || "Save";
+    edit.fields.innerHTML = "";
+    const inputs = {};
+    spec.fields.forEach((f) => {
+      const wrap = document.createElement("div");
+      wrap.className = "field";
+      const lab = document.createElement("label");
+      lab.className = "fl";
+      lab.textContent = f.label;
+      let inp;
+      if (f.options) {
+        inp = document.createElement("select");
+        f.options.forEach((o) => {
+          const op = document.createElement("option");
+          op.value = o.value; op.textContent = o.label;
+          inp.appendChild(op);
+        });
+      } else {
+        inp = document.createElement("input");
+        inp.spellcheck = false;
+        if (f.placeholder) inp.placeholder = f.placeholder;
+      }
+      inp.value = f.value || "";
+      lab.htmlFor = inp.id = "edit-" + f.key;
+      wrap.appendChild(lab);
+      wrap.appendChild(inp);
+      if (f.hint) {
+        const h = document.createElement("div");
+        h.className = "field-hint";
+        h.textContent = f.hint;
+        wrap.appendChild(h);
+      }
+      edit.fields.appendChild(wrap);
+      inputs[f.key] = inp;
+      if (f.onChange) inp.addEventListener("change", () => f.onChange(inputs));
+    });
+    const values = () => Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, v.value]));
+    editSubmit = async () => {
+      edit.ok.disabled = true;
+      try {
+        await spec.onSubmit(values());
+        closeEdit();
+      } catch (e) {
+        edit.msg.textContent = e && e.message ? e.message : String(e);
+      } finally {
+        edit.ok.disabled = false;
+      }
+    };
+    edit.modal.hidden = false;
+    const first = Object.values(inputs)[0];
+    if (first) { first.focus(); if (first.select) first.select(); }
+    edit.fields.onkeydown = (e) => { if (e.key === "Enter" && editSubmit) { e.preventDefault(); editSubmit(); } };
+  }
+
+  edit.ok.addEventListener("click", () => { if (editSubmit) editSubmit(); });
+  edit.cancel.addEventListener("click", closeEdit);
+  edit.modal.addEventListener("mousedown", (e) => { if (e.target === edit.modal) closeEdit(); });
+
+  function renameModelDialog(model) {
+    openEdit({
+      title: "Rename model",
+      text: "Only the display name and alias change; the .gguf file is not touched.",
+      fields: [
+        { key: "name", label: "Display name", value: model.display, hint: "Shown in the model list. Leave empty to use the file name." },
+        { key: "alias", label: "Alias", value: model.alias, hint: "Used for --alias, the CLI and the API. Its configs/<alias>.json is renamed with it; clients using the old alias must be updated." },
+      ],
+      onSubmit: (v) => libCall("RenameModel", model.path, v.name, v.alias),
+    });
+  }
+
+  // All category paths that exist (model placements, their ancestors, empty folders).
+  function allCategoryPaths() {
+    const seen = new Map();
+    const add = (c) => {
+      for (let i = 1; i <= c.length; i++) seen.set(c.slice(0, i).join("\u001f"), c.slice(0, i));
+    };
+    (snap.models || []).forEach((m) => { if (m.category && m.category.length) add(m.category); });
+    (snap.categories || []).forEach(add);
+    return Array.from(seen.values()).sort((a, b) => a.join("›").localeCompare(b.join("›")));
+  }
+
+  const parsePath = (text) => text.split(/[/›]/).map((x) => x.trim()).filter(Boolean);
+
+  function moveModelDialog(model) {
+    const NEW = "\u0001new";
+    const cur = (model.category || []).join("\u001f");
+    const options = [{ value: "", label: "Uncategorized" }]
+      .concat(allCategoryPaths().map((p) => ({ value: p.join("\u001f"), label: p.join(" › ") })))
+      .concat([{ value: NEW, label: "New category…" }]);
+    openEdit({
+      title: "Move to category",
+      text: model.display,
+      submit: "Move",
+      fields: [
+        { key: "cat", label: "Category", value: cur, options, onChange: (inp) => {
+            inp.newpath.parentElement.hidden = inp.cat.value !== NEW;
+            if (!inp.newpath.parentElement.hidden) inp.newpath.focus();
+          } },
+        { key: "newpath", label: "New category path", placeholder: "Qwen / 3.8", hint: "Separate levels with / or ›. Missing levels are created." },
+      ],
+      onSubmit: (v) => {
+        const path = v.cat === NEW ? parsePath(v.newpath) : (v.cat ? v.cat.split("\u001f") : []);
+        if (v.cat === NEW && !path.length) return Promise.reject(new Error("Enter a category path."));
+        return libCall("SetModelCategory", model.path, path);
+      },
+    });
+    const np = $("edit-newpath");
+    if (np) np.parentElement.hidden = true;
+  }
+
+  function newFolderDialog(parent) {
+    openEdit({
+      title: "New category",
+      text: parent.length ? "Inside " + parent.join(" › ") : "At the top level",
+      submit: "Create",
+      fields: [{ key: "name", label: "Name", placeholder: "e.g. Coding models" }],
+      onSubmit: (v) => libCall("CreateCategory", parent.concat(v.name.trim())).then(() => {
+        browsePath = parent.concat(v.name.trim());
+        renderModels();
+      }),
+    });
+  }
+
+  function renameFolderDialog(path) {
+    openEdit({
+      title: "Rename category",
+      text: path.join(" › "),
+      fields: [{ key: "name", label: "New name", value: path[path.length - 1] }],
+      onSubmit: (v) => libCall("RenameCategory", path, v.name).then(() => {
+        const nn = v.name.trim();
+        if (browsePath && hasPrefix(browsePath, path)) {
+          browsePath = browsePath.slice();
+          browsePath[path.length - 1] = nn;
+        }
+      }),
+    });
+  }
+
+  function deleteFolder(path) {
+    const n = (snap.models || []).filter((m) => m.category && hasPrefix(m.category, path)).length;
+    const parent = path.length > 1 ? path.slice(0, -1).join(" › ") : UNCAT;
+    const msg = `Delete the category "${path.join(" › ")}"?` +
+      (n ? `\n\nIts ${n} model(s) are NOT deleted; they move to "${parent}".` : "");
+    if (!window.confirm(msg)) return;
+    libCall("DeleteCategory", path).then(() => {
+      if (browsePath && hasPrefix(browsePath, path)) browsePath = path.slice(0, -1);
+      renderModels();
+    }).catch(() => {});
+  }
+
   // ---- VRAM bar: parses the "(85%)" part of the estimate text ----
 
   function renderVramBar(text) {
@@ -783,6 +1031,7 @@
     initLogsCollapse();
     initTheme();
 
+    $("newCatBtn").addEventListener("click", () => newFolderDialog(browsePath || []));
     el.presetSel.addEventListener("change", () => call("SelectPreset", el.presetSel.value));
     el.saveBtn.addEventListener("click", () => call("SaveConfig"));
     el.loadBtn.addEventListener("click", () => call("LoadConfig"));

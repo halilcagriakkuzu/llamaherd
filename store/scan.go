@@ -161,6 +161,11 @@ func isMTPSidecar(name string) bool {
 	return false
 }
 
+// DisplayName is the file-derived list name for a model path.
+func DisplayName(modelPath string) string {
+	return display(strings.TrimSuffix(filepath.Base(modelPath), filepath.Ext(modelPath)))
+}
+
 func display(base string) string {
 	if len(base) <= 40 {
 		return base

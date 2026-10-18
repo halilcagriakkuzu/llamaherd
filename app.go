@@ -27,6 +27,7 @@ type Snapshot struct {
 	CrashExit      int            `json:"crashExit"`
 	Server         schema.Server  `json:"server"`
 	Models         []schema.Model `json:"models"`
+	Categories     [][]string     `json:"categories"` // persisted category folders (may be empty)
 	SelectedModel  int            `json:"selectedModel"`
 	Alias          string         `json:"alias"`
 	PresetNames    []string       `json:"presetNames"`
@@ -67,6 +68,7 @@ type App struct {
 	modelsDir string // resolved models directory (env / config / default)
 	firstRun  bool   // true => show the setup prompt
 	models    []schema.Model
+	cats      [][]string // persisted (possibly empty) category folders
 	selModel  int
 	selPreset int
 	presets   map[string][]schema.Preset
@@ -268,6 +270,7 @@ func (a *App) initModels() {
 		a.bootLines = append(a.bootLines,
 			fmt.Sprintf("library: created %d uncategorized meta stub(s)", n))
 	}
+	a.cats = store.LoadCategories(settings.LibraryDir())
 	a.bootLines = append(a.bootLines,
 		fmt.Sprintf("models: scanned %d *.gguf under %s", len(a.models), modelsDir))
 }
@@ -307,7 +310,7 @@ func (a *App) initPresets() {
 
 // aliasForPath returns the file-name-derived alias for a model path.
 func (a *App) aliasForPath(path string) string {
-	return store.DerivedAlias(path)
+	return store.AliasFor(settings.LibraryDir(), path)
 }
 
 func (a *App) indexOfModelPath(path string) int {
@@ -608,6 +611,7 @@ func (a *App) snapshot() Snapshot {
 		CrashExit:      info.Exit,
 		Server:         srv,
 		Models:         a.models,
+		Categories:     a.cats,
 		SelectedModel:  a.selModel,
 		Alias:          a.alias(),
 		PresetNames:    a.presetNames(),

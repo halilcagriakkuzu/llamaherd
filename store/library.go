@@ -19,8 +19,12 @@ const LibraryDir = "library"
 // Meta is the on-disk shape of library/<id>.json. An empty Category means
 // "not placed yet" (shown as Uncategorized).
 type Meta struct {
-	ID       string   `json:"id"`
-	Path     string   `json:"path"`
+	ID   string `json:"id"` // always the file-derived id (stable across renames)
+	Path string `json:"path"`
+	// Name overrides the display name and Alias the llama-server alias /
+	// configs/<alias>.json key; empty means "derived from the file name".
+	Name     string   `json:"name,omitempty"`
+	Alias    string   `json:"alias,omitempty"`
 	Category []string `json:"category"`
 	MMProj   string   `json:"mmproj,omitempty"`
 	MTP      bool     `json:"mtp,omitempty"`
@@ -77,6 +81,9 @@ func ApplyLibrary(dir string, models []schema.Model) (created int) {
 			}
 		}
 		m.Category = meta.Category
+		if meta.Name != "" {
+			m.Display = meta.Name
+		}
 		// Embedded MTP head: trust the GGUF header over a hand-written flag.
 		m.MTP = meta.MTP
 		if info, err := ReadGGUFInfo(m.Path); err == nil && info.NextNPredictLayers > 0 {
@@ -98,4 +105,24 @@ func ApplyLibrary(dir string, models []schema.Model) (created int) {
 		}
 	}
 	return created
+}
+
+// AliasFor returns the alias a model file is known by: the library override
+// when one was set, otherwise the file-derived alias.
+func AliasFor(dir, modelPath string) string {
+	if meta, ok := LoadMeta(dir, DerivedAlias(modelPath)); ok && meta.Alias != "" {
+		return meta.Alias
+	}
+	return DerivedAlias(modelPath)
+}
+
+// UpdateMeta loads (or stubs) the meta for modelPath, applies fn and saves it.
+func UpdateMeta(dir, modelPath string, fn func(*Meta)) error {
+	id := DerivedAlias(modelPath)
+	meta, ok := LoadMeta(dir, id)
+	if !ok {
+		meta = Meta{ID: id, Path: settings.RelativizeModelPath(modelPath)}
+	}
+	fn(&meta)
+	return SaveMeta(dir, meta)
 }

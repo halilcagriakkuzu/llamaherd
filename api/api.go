@@ -33,6 +33,11 @@ type Control interface {
 	AddPreset(alias, name string, cfg schema.Config) error
 	UpdatePreset(alias, name string, cfg schema.Config) error
 	RemovePreset(alias, name string) error
+	RenameModel(ref, name, alias string) error
+	SetModelCategory(ref string, category []string) error
+	CreateCategory(path []string) error
+	RenameCategory(path []string, newName string) error
+	DeleteCategory(path []string) error
 }
 
 // Addr returns the loopback control address. The host is fixed to 127.0.0.1;
@@ -178,6 +183,38 @@ func Handler(c Control) http.Handler {
 		writeJSON(w, map[string]any{"ok": true})
 	})
 
+	// Library editing: model = file path or alias; categories are string paths.
+	mux.HandleFunc("POST /model/rename", func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Model, Name, Alias string }
+		decodeAndRun(w, r, &req, func() error { return c.RenameModel(req.Model, req.Name, req.Alias) })
+	})
+	mux.HandleFunc("POST /model/category", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Model    string   `json:"model"`
+			Category []string `json:"category"`
+		}
+		decodeAndRun(w, r, &req, func() error { return c.SetModelCategory(req.Model, req.Category) })
+	})
+	mux.HandleFunc("POST /category/create", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Path []string `json:"path"`
+		}
+		decodeAndRun(w, r, &req, func() error { return c.CreateCategory(req.Path) })
+	})
+	mux.HandleFunc("POST /category/rename", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Path []string `json:"path"`
+			Name string   `json:"name"`
+		}
+		decodeAndRun(w, r, &req, func() error { return c.RenameCategory(req.Path, req.Name) })
+	})
+	mux.HandleFunc("POST /category/delete", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Path []string `json:"path"`
+		}
+		decodeAndRun(w, r, &req, func() error { return c.DeleteCategory(req.Path) })
+	})
+
 	// config add|update|remove share one body shape:
 	// {"alias":"...", "name":"...", "config":{"basic":{...},"advanced":{...}}}
 	// For add/update the "config" MAY be partial: missing keys keep the
@@ -248,6 +285,19 @@ func mergePreset(w http.ResponseWriter, r *http.Request, c Control, update bool)
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+// decodeAndRun decodes the JSON body into req, runs fn and writes {"ok":...}.
+func decodeAndRun(w http.ResponseWriter, r *http.Request, req any, fn func() error) {
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := fn(); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
 	}
 	writeJSON(w, map[string]any{"ok": true})
 }

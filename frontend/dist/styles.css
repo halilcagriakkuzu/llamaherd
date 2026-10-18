@@ -172,7 +172,9 @@ input, select, button { font: inherit; color: inherit; }
 }
 
 #left {
-  flex: 0 0 330px;
+  flex: 0 0 360px;
+  min-width: 0;
+  max-width: 360px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -296,7 +298,7 @@ input, select, button { font: inherit; color: inherit; }
   transition: background 0.12s;
 }
 
-#modelList li > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+#modelList li > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 #modelList li:hover { background: var(--surface-2); }
 #modelList li.folder { font-weight: 600; color: var(--muted); }
 
@@ -324,7 +326,52 @@ input, select, button { font: inherit; color: inherit; }
   font-weight: 600;
   line-height: 1.5;
 }
-#modelList li > .chip:nth-child(2) { margin-left: auto; }
+
+/* row action button + context menu */
+.row-menu {
+  flex: none;
+  width: 24px; height: 24px;
+  padding: 0;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0;
+}
+#modelList li:hover .row-menu, #modelList li.selected .row-menu, .row-menu:focus-visible { opacity: 1; }
+.row-menu:hover:not(:disabled) { background: var(--border); color: var(--text); }
+
+#ctxMenu {
+  position: fixed;
+  z-index: 200;
+  min-width: 200px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+#ctxMenu button {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  justify-content: flex-start;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  font-weight: 500;
+  text-align: left;
+}
+#ctxMenu button:hover:not(:disabled) { background: var(--accent-soft); }
+#ctxMenu button.danger { color: var(--red); }
+#ctxMenu button.danger:hover:not(:disabled) { background: var(--red-soft); }
+#ctxMenu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--border); }
+
+#editFields .field { margin-bottom: 12px; }
+.field-hint { margin-top: 2px; font-size: 11.5px; color: var(--muted); }
 
 /* ---- buttons ---- */
 

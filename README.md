@@ -34,6 +34,10 @@ tune the settings in a form, and press **Start**. It also:
 
 ## Features
 
+- **Library editing** — rename models (display name + alias), move them between nested
+  categories, create/rename/delete category folders from the model list (⋯ menu or
+  right-click), or via `llamaherd model|category ...` and the API. The `.gguf` files are
+  never touched.
 - **Model browser** — recursive scan of your models folder, grouped by
   category, with vision (mmproj), MTP, and MTP draft-sidecar badges.
 - **Model download** — a curated, hardware-aware catalog plus any Hugging Face
@@ -367,6 +371,9 @@ it automatically; other clients pass `Authorization: Bearer <token>` or
 | `POST /stop` | — | stop the managed server |
 | `POST /save` / `POST /load` | — | persist / restore the current preset |
 | `POST /config/add` \| `update` \| `remove` | `{alias, name, config?}` | edit presets |
+| `POST /model/rename` | `{model, name?, alias?}` | change display name / alias (moves `configs/<alias>.json`) |
+| `POST /model/category` | `{model, category: [..]}` | place a model in a category (`[]` = Uncategorized) |
+| `POST /category/create` \| `rename` \| `delete` | `{path: [..], name?}` | manage category folders (delete keeps the models) |
 | `POST /download` | `{ref, repo, file, vision}` | start a HF download |
 | `POST /download/cancel` | — | cancel the active download |
 | `POST /token` | `{token}` | store/clear the HF token |

@@ -24,7 +24,7 @@
       gpuLayers: running ? "all" : "—", tokPerSec: running ? "47.5 tok/s" : "—", tokPerSecTip: "Average of 3 request(s), 190 tokens\nmin 30.0 · max 60.0 · last 60.0 tok/s", vram: running ? "14.9 GB" : "—", cpuRam: running ? "1.2 GB" : "—",
       uptime: running ? "01:23:45" : "00:00:00",
     },
-    models, selectedModel: 0, alias: models[0].alias,
+    models, categories: [["Coding"], ["Qwen", "Experiments"]], selectedModel: 0, alias: models[0].alias,
     presetNames: ["default", "high-ctx", "vision+mtp"], selectedPreset: 0,
     config: {
       basic: { model: models[0].path, alias: models[0].alias, host: "127.0.0.1", port: 8090, context: 25556, gpuLayers: "all", parallelSlots: 1, flashAttention: "on", kCache: "q8_0", vCache: "q8_0", jinja: true, reasoningFmt: "deepseek" },
@@ -69,5 +69,13 @@
   window.addEventListener("load", () => setTimeout(() => {
     if (tab) document.getElementById({ basic: "tabBtnBasic", advanced: "tabBtnAdvanced", llama: "tabBtnLlama" }[tab]).click();
     if (modal === "download") document.getElementById("dlOpen").click();
+    const click = (sel, text) => { const n = Array.from(document.querySelectorAll(sel)).find((x) => !text || x.textContent.trim().startsWith(text)); if (n) n.click(); return n; };
+    if (params.get("view") === "all") click("#crumbs button", "All");
+    const menu = params.get("menu");
+    if (menu === "model") document.querySelector("#modelList li:not(.folder)").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 150, clientY: 560 }));
+    if (menu === "folder") document.querySelector("#modelList li.folder").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 150, clientY: 520 }));
+    const dialog = params.get("dialog");
+    if (dialog === "rename") { document.querySelector("#modelList li:not(.folder)").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 150, clientY: 560 })); click("#ctxMenu button", "Rename"); }
+    if (dialog === "move") { document.querySelector("#modelList li:not(.folder)").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 150, clientY: 560 })); click("#ctxMenu button", "Move"); }
   }, 150));
 })();

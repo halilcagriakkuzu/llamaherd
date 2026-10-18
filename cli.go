@@ -16,6 +16,10 @@ package main
 //	llamaherd config add <alias> <name>    [--set basic.port=8090 --set advanced.fit=on]
 //	llamaherd config update <alias> <name> [--set basic.port=8090 ...]
 //	llamaherd config remove <alias> <name>
+//	llamaherd model rename <alias> [--name N] [--alias A]
+//	llamaherd model move <alias> [<category/path>]   (no path = remove from category)
+//	llamaherd category create|delete <a/b/c>
+//	llamaherd category rename <a/b/c> <new-name>
 //	llamaherd daemon                       (headless, serves the control API)
 
 import (
@@ -66,6 +70,12 @@ func runCLI(args []string) int {
 		return runDownload(args)
 	case "list", "status", "open", "stop", "save", "load":
 		return ctl(args)
+	case "model", "category":
+		if len(args) >= 2 {
+			return ctl(args)
+		}
+		fmt.Fprintln(os.Stderr, subcommandUsage(args[0]))
+		return 2
 	case "config":
 		if len(args) >= 2 {
 			switch args[1] {
@@ -101,6 +111,12 @@ func helpLines() []string {
 		"                       replace an existing preset (same --set syntax)",
 		"  config remove <alias> <name>",
 		"                       delete a preset (a saved file survives if needed)",
+		"  model rename <alias> [--name N] [--alias A]",
+		"                       change a model's display name and/or alias (moves its configs)",
+		"  model move <alias> [<a/b/c>]",
+		"                       put a model in a category (no path: back to Uncategorized)",
+		"  category create|delete <a/b/c> | category rename <a/b/c> <new-name>",
+		"                       manage category folders (deleting keeps the models)",
 		"  daemon               headless core serving only the control API",
 		"  version              print the version and exit",
 		"  doctor [--json]      check the environment (binary, GPU, libs, models, port)",
@@ -129,6 +145,8 @@ func subcommandUsage(sub string) string {
 		"doctor":   "usage: llamaherd doctor [--json]",
 		"download": "usage: llamaherd download list|<ref> [<file>] [--vision <file>]|status|cancel|token [<t>|--clear]",
 		"config":   "usage: llamaherd config add|update|remove <alias> <name> [--set key=value ...]",
+		"model":    "usage: llamaherd model rename <alias> [--name N] [--alias A] | model move <alias> [<a/b/c>]",
+		"category": "usage: llamaherd category create|delete <a/b/c> | category rename <a/b/c> <new-name>",
 		"version":  "usage: llamaherd version          # print the version and exit",
 	}
 	return m[sub]
@@ -243,6 +261,10 @@ func ctlRequest(args []string) ([]byte, int, error) {
 		return post("/save", map[string]any{})
 	case "load":
 		return post("/load", map[string]any{})
+	case "model":
+		return libraryModelRequest(args)
+	case "category":
+		return libraryCategoryRequest(args)
 	case "config":
 		if len(args) < 3 {
 			return []byte("config add|update|remove required"), 400, nil
@@ -581,4 +603,63 @@ func daemonSelf() string {
 		return self
 	}
 	return os.Args[0]
+}
+
+// splitCategory turns "a/b/c" (or "a › b") into path segments.
+func splitCategory(s string) []string {
+	var out []string
+	for _, p := range strings.FieldsFunc(s, func(r rune) bool { return r == '/' || r == '›' }) {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// libraryModelRequest handles `model rename|move`.
+func libraryModelRequest(args []string) ([]byte, int, error) {
+	switch args[1] {
+	case "rename":
+		fs := flag.NewFlagSet("model rename", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		name := fs.String("name", "", "display name (empty: keep the file-derived name)")
+		alias := fs.String("alias", "", "new alias (empty: keep the file-derived alias)")
+		if len(args) < 3 {
+			return nil, 2, errors.New("usage: llamaherd model rename <alias> [--name N] [--alias A]")
+		}
+		if err := fs.Parse(args[3:]); err != nil {
+			return nil, 2, err
+		}
+		return post("/model/rename", map[string]string{"model": args[2], "name": *name, "alias": *alias})
+	case "move":
+		if len(args) < 3 {
+			return nil, 2, errors.New("usage: llamaherd model move <alias> [<category/path>]")
+		}
+		path := []string{}
+		if len(args) > 3 {
+			path = splitCategory(strings.Join(args[3:], " "))
+		}
+		return post("/model/category", map[string]any{"model": args[2], "category": path})
+	}
+	return nil, 2, errors.New("usage: llamaherd model rename|move <alias> (see llamaherd help)")
+}
+
+// libraryCategoryRequest handles `category create|rename|delete`.
+func libraryCategoryRequest(args []string) ([]byte, int, error) {
+	if len(args) < 3 {
+		return nil, 2, errors.New("usage: llamaherd category create|delete <a/b/c> | category rename <a/b/c> <new-name>")
+	}
+	path := splitCategory(args[2])
+	switch args[1] {
+	case "create":
+		return post("/category/create", map[string]any{"path": path})
+	case "delete":
+		return post("/category/delete", map[string]any{"path": path})
+	case "rename":
+		if len(args) < 4 {
+			return nil, 2, errors.New("usage: llamaherd category rename <a/b/c> <new-name>")
+		}
+		return post("/category/rename", map[string]any{"path": path, "name": args[3]})
+	}
+	return nil, 2, errors.New("usage: llamaherd category create|rename|delete <a/b/c> (see llamaherd help)")
 }

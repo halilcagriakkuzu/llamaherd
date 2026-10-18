@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Library editing**: rename models (display name + alias; `configs/<alias>.json` moves
+  with it), nested categories with create/rename/delete (empty folders persist; deleting
+  keeps the models), move / remove from category. GUI (⋯ menu, right-click), CLI
+  (`model rename|move`, `category create|rename|delete`) and API. Data lives in
+  `library/<id>.json` (`name`, `alias`) and `library/_categories.json`.
 - **Generation speed** in the Server box: average tokens/s of the managed server's finished
   requests (token-weighted, parsed from llama-server's per-request timing line);
   hover for min / max / last and the request count. Resets on every start; not
