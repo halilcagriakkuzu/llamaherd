@@ -14,7 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   responsive settings grid with `--flag` hints, VRAM usage bar, terminal-style logs
   (collapsed by default; opens on start/crash), refined modals and dialogs. No
   features were removed. Default window is now 1240x820 (min 960x640).
-- New orange llama icon.
+- New orange llama icon, also embedded in `llamaherd.exe` (`rsrc_windows_amd64.syso`,
+  regenerate with `scripts/make-winres.sh`) so Windows shortcuts, the taskbar and
+  Explorer show it; Windows file properties now carry product name/description.
+- Windows shortcut icons live in `%USERPROFILE%\LlamaHerd\` (hash-named, BMP-encoded
+  ICO) — a blank icon was observed from the AppData location.
 
 ### Fixed
 
