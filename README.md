@@ -217,6 +217,30 @@ CGO_ENABLED=0 go build ./...          # compile check (all packages)
 go build -o llamaherd . && ./llamaherd doctor
 ```
 
+### Reproducible builds
+
+The toolchain is pinned in the repo, so a clean checkout builds deterministically:
+
+- **Go** — the version in `go.mod` (`go 1.25.0`); CI uses
+  `go-version-file: go.mod`. The `main.version` value defaults to `dev` and is
+  stamped at release time with `-ldflags "-X main.version=<tag>"`, so
+  `llamaherd version` reports the release tag.
+- **Wails** — `github.com/wailsapp/wails/v2 v2.16.0`, pinned in `go.mod`, with
+  `go.sum` locking every transitive module. The Wails **CLI** is only needed for
+  `wails build`; a plain `go build -tags desktop,production` (plus
+  `webkit2_41`/`webkit2_40` on Linux) is enough.
+- **Frontend** — prebuilt static files in `frontend/dist`; no npm/framework, so
+  there is no separate frontend build step.
+- **System libraries** — the OS webview (GTK3/WebKit2GTK on Linux, WebView2 on
+  Windows 11, WebKit on macOS); see Requirements.
+
+To reproduce a release binary locally:
+
+```bash
+go build -tags webkit2_41,desktop,production \
+  -ldflags "-X main.version=$(git describe --tags --always)" -o build/bin/llamaherd .
+```
+
 ### Platform support
 
 | Platform | GUI | CLI / daemon | Notes |
@@ -431,6 +455,7 @@ never written into configs or presets. Set `HF_ENDPOINT` to use a mirror.
 | `tasks/` | Original design task specs |
 | `docs/` | Deeper docs (see [`docs/architecture.md`](docs/architecture.md)) |
 | `BACKLOG.md` | Plan for making the project shareable |
+| `CHANGELOG.md` | Release notes ([Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)) |
 
 ## Troubleshooting
 

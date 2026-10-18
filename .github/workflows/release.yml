@@ -27,6 +27,9 @@ jobs:
     # arm64 Linux and native Windows are best-effort: a failure there must not
     # block the other artifacts or the release.
     continue-on-error: ${{ matrix.experimental }}
+    # Tag builds stamp the version into the binary (llamaherd version).
+    env:
+      VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +89,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist/package
-          CGO_ENABLED=1 go build -tags "${{ matrix.tags }}" -o "dist/package/${{ matrix.bin }}" .
+          CGO_ENABLED=1 go build -tags "${{ matrix.tags }}" -ldflags "-X main.version=${VERSION}" -o "dist/package/${{ matrix.bin }}" .
           cp assets/llamaherd.png LICENSE README.md dist/package/
           [ -d configs ] && cp -r configs dist/package/ || true
 
@@ -95,7 +98,7 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p dist/package
-          go build -tags "${{ matrix.tags }}" -o "dist/package/${{ matrix.bin }}" .
+          go build -tags "${{ matrix.tags }}" -ldflags "-X main.version=${VERSION}" -o "dist/package/${{ matrix.bin }}" .
           cp assets/llamaherd.png LICENSE README.md dist/package/
           [ -d configs ] && cp -r configs dist/package/ || true
 

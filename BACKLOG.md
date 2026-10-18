@@ -8,13 +8,13 @@ items; each line is a task to be done, reviewed, and checked off.
 ## 0. Repository hygiene / open-source readiness
 
 - [x] Choose and add an open-source `LICENSE` — **The Unlicense** (public domain, no conditions) added as `LICENSE`.
-- [ ] Initialize git if not already done (`git init`, initial commit). *(deferred)*
-- [ ] Add a `.gitignore` covering `build/`, `build/bin/`, `qtbox`, `configs/*.local.json`, logs, editor/OS junk (`.DS_Store`, `Thumbs.db`). *(deferred)*
-- [ ] Decide what must NOT be committed: absolute model paths, personal `configs/*.json`, `build/`, `launch.log`.
+- [x] Initialize git if not already done (`git init`, initial commit) — done; remote `git@github.com:halilcagriakkuzu/llamaherd.git`, branch `main`.
+- [x] Add a `.gitignore` covering `build/`, `build/bin/`, `qtbox`, `configs/*.local.json`, logs, editor/OS junk (`.DS_Store`, `Thumbs.db`) — added (build output, models, `configs/`, `library/`, `*.gguf`, `hf_token`, OS/editor junk, `.claude/settings.local.json`).
+- [x] Decide what must NOT be committed: absolute model paths, personal `configs/*.json`, `build/`, `launch.log` — `configs/`, `library/`, `models/`, `build/` are ignored; shipped presets come from `dummy/data.go`.
 - [ ] Add a `CONTRIBUTING.md` (how to build, run, submit PRs, code style).
 - [ ] Add a `CODE_OF_CONDUCT.md`.
 - [ ] Add issue/PR templates (`.github/ISSUE_TEMPLATE/`, `PULL_REQUEST_TEMPLATE.md`).
-- [ ] Enable GitHub Actions CI (build + `go test ./...` on Ubuntu) — see section 8.
+- [x] Enable GitHub Actions CI (build + `go test ./...` on Ubuntu) — see section 8.
 - [ ] Add a project description + topics on the GitHub repo page.
 - [ ] Add screenshots/GIF of the GUI to the README and `docs/`.
 - [x] Pick a project name without trademark/name conflicts — chose **"LlamaHerd"** (no existing product/trademark found; "LlamaHerd" is a generic phrase, and "LlamaDeck"/"Llamanager" were rejected as taken).
@@ -119,12 +119,12 @@ API (`GET /catalog`, `GET|POST /download`, `POST /download/cancel`,
 ## 8. Build, CI, and releases
 
 - [x] Add a GitHub Actions workflow that builds on Ubuntu (and matrix Windows/macOS) — `.github/workflows/ci.yml` (Linux vet/test/build + `install.sh --dry-run`) and `.github/workflows/release.yml` (per-OS matrix).
-- [x] Run `go test ./...` in CI and gate merges on it — CI runs `go test -skip TestAllPresetsFitBudget ./...` until the known failure below is fixed.
-- [ ] Add a config-consistency test that does not depend on a real GPU (current VRAM test skips when no GPU).
-- [ ] Fix the currently failing `TestAllPresetsFitBudget` (two `qwen3.8-27b-uncensored-local` presets exceed the budget) or adjust presets.
+- [x] Run `go test ./...` in CI and gate merges on it — CI now runs plain `go test ./...` (no skips) on the Linux/macOS/Windows matrix.
+- [x] Add a config-consistency test that does not depend on a real GPU (current VRAM test skips when no GPU) — `TestBuiltinPresetsConsistent` (built-in preset shape + generated command line) and `TestPresetSaveLoadRoundTrip` / `TestPresetAbsolutePathsAreMadePortable` (config persistence, GPU/model-free); `TestAllPresetsFitBudget` now skips presets whose model file is absent.
+- [x] Fix the currently failing `TestAllPresetsFitBudget` (two `qwen3.8-27b-uncensored-local` presets exceed the budget) or adjust presets — adjusted the machine-local presets to the safe `-ngl` for their context/KV, and made the test skip presets without local model files instead of failing spuriously.
 - [x] Add a release workflow that uploads cross-platform binaries to GitHub Releases — `.github/workflows/release.yml` on `v*` tags (stable asset names).
-- [ ] Tag semantic versions (`v0.1.0`, …) and keep a `CHANGELOG.md`.
-- [ ] Add reproducible build notes / pinned toolchain (Go version, Wails version).
+- [x] Tag semantic versions (`v0.1.0`, …) and keep a `CHANGELOG.md` — `CHANGELOG.md` added; `v0.1.0` tagged; the version is stamped into the binary via `-ldflags -X main.version=<tag>`.
+- [x] Add reproducible build notes / pinned toolchain (Go version, Wails version) — README "Reproducible builds" (Go from `go.mod`, Wails `v2.16.0` + `go.sum`, prebuilt frontend, version stamping).
 
 ## 9. Quality, testing, and safety
 
