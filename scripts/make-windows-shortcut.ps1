@@ -2,17 +2,29 @@
 #
 # Run from Windows PowerShell, or from WSL via:
 #   powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
-#     "\\wsl.localhost\Ubuntu\home\halilcagriakkuzu\workspace\LlamaHerd\scripts\make-windows-shortcut.ps1"
+#     "\\wsl.localhost\Ubuntu\home\<user>\workspace\LlamaHerd\scripts\make-windows-shortcut.ps1"
 #
 # Creates "LlamaHerd" on the Desktop and in the Start Menu.
 
 param(
     [string]$Distro   = "Ubuntu",
-    [string]$RepoPath = "/home/halilcagriakkuzu/workspace/LlamaHerd",
+    [string]$RepoPath = "",
     [string]$WslgExe  = "C:\Program Files\WSL\wslg.exe"
 )
 
 $ErrorActionPreference = "Stop"
+
+# Auto-detect the Linux repo path when this script is run from a
+# \\wsl.localhost\<distro>\... checkout (scripts\ is one level below the repo).
+if (-not $RepoPath) {
+    $root = Split-Path -Parent $PSScriptRoot
+    foreach ($pre in @("\\wsl.localhost\$Distro", "\\wsl$\$Distro")) {
+        if ($root.StartsWith($pre, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $RepoPath = ($root.Substring($pre.Length) -replace '\\', '/')
+        }
+    }
+    if (-not $RepoPath) { throw "Pass -RepoPath <linux path of the LlamaHerd checkout> (e.g. /home/you/LlamaHerd)." }
+}
 
 if (-not (Test-Path $WslgExe)) {
     # Fall back to wsl.exe if wslg.exe is not present (an extra console window

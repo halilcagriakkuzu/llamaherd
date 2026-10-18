@@ -42,6 +42,20 @@ func Addr() string { return settings.APIAddr() }
 
 // Serve (blocking) starts the API. Locked to loopback.
 func Serve(c Control) error {
+	if settings.APIToken() != "" {
+		log.Printf("ctl: api listening on http://%s (bearer token required)", Addr())
+	} else {
+		log.Printf("ctl: api listening on http://%s", Addr())
+	}
+	var e http.Server
+	e.Addr = Addr()
+	e.Handler = Handler(c)
+	return e.ListenAndServe()
+}
+
+// Handler returns the API's HTTP handler (auth included) for c; Serve wraps it
+// in a loopback listener, tests mount it on httptest.
+func Handler(c Control) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
@@ -190,15 +204,7 @@ func Serve(c Control) error {
 		writeJSON(w, map[string]any{"ok": true})
 	})
 
-	if settings.APIToken() != "" {
-		log.Printf("ctl: api listening on http://%s (bearer token required)", Addr())
-	} else {
-		log.Printf("ctl: api listening on http://%s", Addr())
-	}
-	var e http.Server
-	e.Addr = Addr()
-	e.Handler = withAuth(mux)
-	return e.ListenAndServe()
+	return withAuth(mux)
 }
 
 // withAuth enforces a bearer token when settings.APIToken() is set, accepting

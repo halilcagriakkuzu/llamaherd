@@ -44,6 +44,48 @@ jobs:
       - name: go build
         run: go build ./...
 
+  lint:
+    name: lint (gofmt + golangci-lint)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"; echo "$unformatted"; exit 1
+          fi
+      # The tagged GUI files need GTK/WebKit headers to type-check.
+      - name: Install GUI build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+
+  # Race detector on the Linux target (tests are GPU-free and model-free).
+  race:
+    name: go test -race (Linux)
+    runs-on: ubuntu-24.04
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install GUI build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+      - run: go test -race ./...
+
   # The real GUI build only runs on Linux (the primary target); Windows/macOS
   # GUI builds are produced by the release workflow.
   gui-build-linux:

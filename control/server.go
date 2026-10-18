@@ -304,16 +304,12 @@ func (m *Manager) awaitHealth(ctx context.Context, host string, port int, starte
 				m.readyAt = time.Now()
 			}
 			ready := m.status == StatusRunning
-			stoppedAlready := m.status == StatusStopped || m.status == StatusCrashed
 			m.mu.Unlock()
 			if ready {
 				el := time.Since(startedAt).Truncate(100 * time.Millisecond)
 				m.log(fmt.Sprintf("ready in %s (%s)", el, addr))
 				go m.sampleMetrics(ctx)
 				m.emit()
-			}
-			if stoppedAlready {
-				return
 			}
 			return
 		}

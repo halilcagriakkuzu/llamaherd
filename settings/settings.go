@@ -145,7 +145,7 @@ func Save(f File) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(p, append(data, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(p, append(data, '\n'), 0o600); err != nil {
 		return err
 	}
 	cfgPath, cfgCache, cfgValid = p, f, true

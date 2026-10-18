@@ -133,7 +133,7 @@ func downloadCancel() int {
 		OK    bool   `json:"ok"`
 		Error string `json:"error"`
 	}
-	json.Unmarshal(body, &r)
+	_ = json.Unmarshal(body, &r)
 	if !r.OK {
 		fmt.Fprintln(os.Stderr, "download: "+strings.TrimSpace(r.Error))
 		return 1

@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stops the Linux process, and `doctor` checks the binary + warns about slow
   `/mnt/<drive>` model access.
 
+### Quality
+
+- GPU-free unit tests for GGUF parsing, model scan, config/library load/save,
+  VRAM estimate (synthetic GGUFs, faked card size) and the control API (fake
+  controller + end-to-end against the real App with a fake server binary).
+- CI: gofmt check, golangci-lint (errcheck/govet/staticcheck/unused/misspell),
+  `go test -race`.
+- Security hygiene: user config file is now written `0600`; personal paths
+  removed from tracked docs/scripts; VRAM guard and llama.cpp update documented.
+
 ### Changed
 
 - Default models directory is now `~/LlamaHerd/models` (created on first run).

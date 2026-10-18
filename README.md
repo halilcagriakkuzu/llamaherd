@@ -446,6 +446,53 @@ For private or gated repos, LlamaHerd reads a token from, in order:
 then the standard Hugging Face cache (`~/.cache/huggingface/token`). The token is
 never written into configs or presets. Set `HF_ENDPOINT` to use a mirror.
 
+### VRAM pre-flight guard
+
+Before every start (GUI, CLI `open`, API `/open`) LlamaHerd predicts the GPU
+footprint and **refuses to launch above 90% of total VRAM**, because a runaway
+allocation can take down the whole WSL distro or desktop. The estimate
+(`control/vram.go`) is the sum of:
+
+- model weights × the share placed on the GPU (`-ngl`; `--override-tensor` CPU
+  offloads subtracted),
+- KV cache = context × full-attention layers × KV heads × head dim × bytes per
+  element of `kCache`/`vCache` (`f16`, `q8_0`, `q4_0`, …). Hybrid models
+  (`full_attention_interval`) only keep a KV cache on a fraction of layers,
+- the recurrent (SSM) state of hybrid layers,
+- a compute-buffer allowance (grows with `ubatch` and context),
+- the `mmproj` vision sidecar (unless `--no-mmproj-offload`) and a separate
+  draft model, when set.
+
+Layer/head counts come from the GGUF header; if it cannot be read the result is
+a rough, conservative file-size estimate. With no NVIDIA GPU visible
+(`nvidia-smi` missing) nothing is blocked. The estimate is approximate — treat
+it as a safety net, not a guarantee. A blocked start logs the full breakdown and
+sets the UI warning; `SafeGpuLayers` picks the largest `-ngl` that fits when
+synthesizing default presets.
+
+**Testing without a GPU:** `internal/ggufgen` writes tiny synthetic GGUF
+headers and `control.SetTotalVramForTesting` fakes the card size, so
+`go test ./control` and the end-to-end API test exercise "fits", "blocked",
+"no GPU" and `SafeGpuLayers` on any machine.
+
+### Updating llama.cpp from the GUI
+
+The **llama.cpp** tab shows the installed build/commit and can update and
+rebuild your checkout in one click (Linux/macOS/WSL only). It runs
+`scripts/update-llamacpp.sh`:
+
+1. `git pull --ff-only` in the llama.cpp checkout (never creates a merge commit),
+2. `cmake -S . -B <build> -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=<arch>`,
+3. `cmake --build <build> --config Release -j<cores>`.
+
+The log streams into the tab and a running `llama-server` is warned about (the
+new binary is used after the next restart). Paths come from `llamaDir` /
+`LLAMAHERD_LLAMA_DIR` and `llamaBuildDir` / `LLAMAHERD_LLAMA_BUILD_DIR`. When running
+the script yourself, override with `LLAMA_DIR`, `BUILD_DIR`, `CUDA_ARCH`
+(default `89` = RTX 40-series; **set it for your GPU**, e.g. `86` for RTX 30),
+`JOBS` and `GIT_PULL_ARGS`. `llamaherd doctor` warns when the build is older
+than the minimum the presets need (override with `LLAMAHERD_MIN_LLAMA_BUILD`).
+
 ### Paths
 
 - The models directory defaults to `~/LlamaHerd/models` (`%USERPROFILE%\LlamaHerd\models`

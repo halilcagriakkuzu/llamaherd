@@ -128,12 +128,12 @@ API (`GET /catalog`, `GET|POST /download`, `POST /download/cancel`,
 
 ## 9. Quality, testing, and safety
 
-- [ ] Add unit tests for config load/save, model scan, GGUF parsing, VRAM estimate.
-- [ ] Add integration tests for the control API.
-- [ ] Add a lint step (`gofmt`, `go vet`, optionally `golangci-lint`).
-- [ ] Verify the VRAM pre-flight guard behavior is documented and testable without a GPU.
-- [ ] Sanity-check that no secrets, tokens, or personal paths leak into logs or commits.
-- [ ] Review error messages for clarity and English-only consistency.
+- [x] Add unit tests for config load/save, model scan, GGUF parsing, VRAM estimate. — `store/*_test.go`, `control/vram_test.go` (synthetic GGUFs via `internal/ggufgen`).
+- [x] Add integration tests for the control API. — `api/api_test.go` (fake controller, auth) and `app_integration_test.go` (real App, fake server binary).
+- [x] Add a lint step (`gofmt`, `go vet`, optionally `golangci-lint`). — `.golangci.yml` + CI `lint` and `race` jobs.
+- [x] Verify the VRAM pre-flight guard behavior is documented and testable without a GPU. — README "VRAM pre-flight guard"; `control.SetTotalVramForTesting`.
+- [x] Sanity-check that no secrets, tokens, or personal paths leak into logs or commits. — scanned tree: no secrets; personal paths removed from AGENTS.md / `make-windows-shortcut.ps1`; config file now `0600`. Git history still contains the old paths (harmless, no credentials).
+- [x] Review error messages for clarity and English-only consistency. — no non-English text; fixed the `%90` budget typo and trailing-punctuation error string.
 
 ## 10. Documentation for contributors and users of the API
 
@@ -146,7 +146,7 @@ API (`GET /catalog`, `GET|POST /download`, `POST /download/cancel`,
 ## 11. Nice-to-haves after the basics work
 
 - [ ] Auto-update mechanism for the app itself.
-- [ ] Auto-update/rebuild for llama.cpp from the GUI (already partially present — document it).
+- [x] Auto-update/rebuild for llama.cpp from the GUI — documented in the README ("Updating llama.cpp from the GUI").
 - [ ] Multi-user / multi-instance support (beyond the current singleton).
 - [ ] Model library curator: import, tag, and deduplicate models.
 - [ ] i18n framework (keep English as default, allow translations).

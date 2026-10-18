@@ -102,7 +102,7 @@ func SaveAlias(dir string, alias string, presets []schema.Preset) error {
 // ScanModels walks root recursively and returns one entry per loadable *.gguf.
 // mmproj*.gguf vision sidecars are NOT listed: each is attached to the loadable
 // models in the same directory (Model.MMProj). Alias is left empty — the caller
-// resolves aliases .
+// resolves aliases.
 func ScanModels(root string) []schema.Model {
 	var loads []string
 	mmByDir := map[string][]string{}
@@ -167,6 +167,3 @@ func display(base string) string {
 	}
 	return base[:16] + "-...-" + base[len(base)-18:]
 }
-
-// elide derives a list-display name from a file base name.
-func elide(s string) string { return display(s) }

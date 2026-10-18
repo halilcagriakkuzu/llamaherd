@@ -5,8 +5,8 @@ Git repo: `git@github.com:halilcagriakkuzu/llamaherd.git` (branch `main`).
 
 ## Project
 
-- Path (WSL): `/home/halilcagriakkuzu/workspace/LlamaHerd`
-- Windows UNC path (for file writes from Windows): `\\wsl.localhost\Ubuntu\home\halilcagriakkuzu\workspace\LlamaHerd`
+- Path (WSL): `~/workspace/LlamaHerd` (your checkout location)
+- Windows UNC path (for file writes from Windows): `\\wsl.localhost\Ubuntu\home\<user>\workspace\LlamaHerd`
 - Go module name: `llamaherd`
 - GUI: **Wails v2** (v2.16.0 CLI, `go:build webkit2_41` on Ubuntu 24.04),
   vanilla HTML/JS/CSS frontend in `frontend/dist/` — no npm/framework
@@ -77,8 +77,8 @@ The Q3/IQ4/UD-Q3 models also carry a `high-ctx` preset: full GPU offload
 (`-ngl all`) with the largest context that still fits (q4_0 KV), e.g. Q3_K_S
 ~96k, UD-Q3_K_XL ~68k, Q3_K_P ~55k, UD-IQ4_XS ~16k.
 
-- Server binary: `/home/halilcagriakkuzu/llama.cpp/build-latest/bin/llama-server`
-- Models dir (scan recursively for `*.gguf`; `mmproj*.gguf` are vision sidecars, not loadable models): `/home/halilcagriakkuzu/llm/models/`
+- Server binary: `~/llama.cpp/build-latest/bin/llama-server`
+- Models dir (scan recursively for `*.gguf`; `mmproj*.gguf` are vision sidecars, not loadable models): `~/llm/models/`
 - Real status/control:
   - HTTP on `127.0.0.1:8080`: `/health`, `/props`, `/v1/models`, `/metrics`
   - Launch/kill the process; per-alias configs become real `configs/<alias>.json` file I/O
@@ -86,14 +86,14 @@ The Q3/IQ4/UD-Q3 models also carry a `high-ctx` preset: full GPU offload
 
 ```bash
 # 1 — qwen3.8-27b-local (UD-IQ4_XS)
-llama-server --model /home/halilcagriakkuzu/llm/models/unsloth/Qwen3.8-27B-GGUF/Qwen3.8-27B-UD-IQ4_XS.gguf \
+llama-server --model ~/llm/models/unsloth/Qwen3.8-27B-GGUF/Qwen3.8-27B-UD-IQ4_XS.gguf \
   --alias qwen3.8-27b-local --host 127.0.0.1 --port 8080 -ngl all --fit off \
   -c 25556 -np 1 -fa on -ctk q8_0 -ctv q8_0 --jinja --reasoning-format deepseek \
   --spec-type draft-mtp --spec-draft-n-max 3 --perf --sleep-idle-seconds 300
 
 # 2 — qwen3.8-27b-uncensored-local (TurboFCFusion, vision + MTP)
-llama-server --model /home/halilcagriakkuzu/llm/models/Qwen3.8_Uncensored/Heretic/Fable-Distilled/Qwen3.8-27B-TurboFCFusion-735-882-Here-Uncen-NEO-CODER-MAX-LOW-MTP-IQ4_XS.gguf \
-  --mmproj /home/halilcagriakkuzu/llm/models/Qwen3.8_Uncensored/Heretic/Fable-Distilled/mmproj-F16.gguf \
+llama-server --model ~/llm/models/Qwen3.8_Uncensored/Heretic/Fable-Distilled/Qwen3.8-27B-TurboFCFusion-735-882-Here-Uncen-NEO-CODER-MAX-LOW-MTP-IQ4_XS.gguf \
+  --mmproj ~/llm/models/Qwen3.8_Uncensored/Heretic/Fable-Distilled/mmproj-F16.gguf \
   --no-mmproj-offload --alias qwen3.8-27b-uncensored-local --host 127.0.0.1 --port 8080 \
   -ngl all --fit off -c 32768 -np 1 -fa on -ctk q8_0 -ctv q8_0 --jinja \
   --reasoning-format deepseek --spec-type draft-mtp --spec-draft-n-max 2 \
@@ -101,7 +101,7 @@ llama-server --model /home/halilcagriakkuzu/llm/models/Qwen3.8_Uncensored/Hereti
   --cache-ram 4096 --sleep-idle-seconds 5
 
 # 3 — qwen3.8-27b-uncensored-local (TurboFCFusion, plain)
-llama-server --model /home/halilcagriakkuzu/llm/models/Qwen3.8_Uncensored/Heretic/Fable-Distilled/Qwen3.8-27B-TurboFCFusion-735-882-Here-Uncen-NEO-CODER-MAX-LOW-MTP-IQ4_XS.gguf \
+llama-server --model ~/llm/models/Qwen3.8_Uncensored/Heretic/Fable-Distilled/Qwen3.8-27B-TurboFCFusion-735-882-Here-Uncen-NEO-CODER-MAX-LOW-MTP-IQ4_XS.gguf \
   --alias qwen3.8-27b-uncensored-local --host 127.0.0.1 --port 8080 \
   -ngl all --fit off -c 32768 -np 1 -fa on -ctk q8_0 -ctv q8_0 --jinja \
   --reasoning-format deepseek --sleep-idle-seconds 5

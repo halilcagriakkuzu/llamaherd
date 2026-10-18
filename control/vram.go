@@ -180,7 +180,7 @@ func EstimateVram(cfg schema.Config) VramEstimate {
 		e.ModelMB/1024, e.KVKMB/1024, e.KVVMB/1024, e.SSMMB/1024, e.ComputeMB/1024, meta)
 
 	if !e.Fits {
-		e.Warn = fmt.Sprintf("start blocked: estimated VRAM %.1f GiB, card's %%90 budget %.1f GiB (total %.1f GiB). Reduce the context and/or the q4 KV cache, or lower the GPU layer count (-ngl).",
+		e.Warn = fmt.Sprintf("start blocked: estimated VRAM %.1f GiB, card's 90%% budget %.1f GiB (total %.1f GiB). Reduce the context and/or the q4 KV cache, or lower the GPU layer count (-ngl).",
 			e.TotalMB/1024, e.BudgetMB/1024, float64(e.TotalVram)/1024)
 	}
 	return e
@@ -233,6 +233,9 @@ func SafeGpuLayers(cfg schema.Config) int {
 	return -1
 }
 
+// vramProbe, when non-nil, replaces the nvidia-smi query (tests only).
+var vramProbe func() int
+
 var (
 	vramMu     sync.Mutex
 	vramCached int
@@ -243,6 +246,9 @@ var (
 // unavailable). Cached briefly so a UI keystroke storm cannot fork a process
 // per key.
 func TotalVramMB() int {
+	if f := vramProbe; f != nil {
+		return f()
+	}
 	vramMu.Lock()
 	defer vramMu.Unlock()
 	if time.Since(vramAt) < 10*time.Second {

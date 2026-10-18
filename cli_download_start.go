@@ -36,7 +36,9 @@ func ensureDaemon() error {
 	fmt.Fprintln(os.Stderr, "download: control API not reachable, starting headless daemon...")
 	cmd := exec.Command(daemonSelf(), "daemon")
 	cmd.SysProcAttr = daemonSysProcAttr()
-	cmd.Start()
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, "download: cannot start daemon:", err)
+	}
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		if conn, err := net.DialTimeout("tcp", api.Addr(), 300*time.Millisecond); err == nil {
@@ -90,7 +92,7 @@ func downloadStart(args []string) int {
 		OK    bool   `json:"ok"`
 		Error string `json:"error"`
 	}
-	json.Unmarshal(body, &r)
+	_ = json.Unmarshal(body, &r)
 	if !r.OK {
 		fmt.Fprintln(os.Stderr, "download: "+strings.TrimSpace(r.Error))
 		return 1

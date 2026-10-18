@@ -106,12 +106,6 @@ func signalGraceful(pid int) error {
 
 func forceKill(pid int) error { return signalGraceful(pid) }
 
-// detachedAttr starts the child detached from the console so the headless
-// daemon outlives the launching terminal.
-func detachedAttr() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{CreationFlags: detachedProcess}
-}
-
 // groupAttr starts the child in its own process group.
 func groupAttr() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{CreationFlags: createNewProcessGroup}

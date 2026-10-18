@@ -1,0 +1,35 @@
+version: "2"
+run:
+  build-tags: [webkit2_41, desktop, production]
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+  settings:
+    errcheck:
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (*os.File).Close
+        - os.Remove
+        - os.RemoveAll
+        - os.MkdirAll
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (io.Closer).Close
+  exclusions:
+    rules:
+      # Test helpers and best-effort cleanup: failures surface as test failures.
+      - path: _test\.go
+        linters: [errcheck]
+      # Deliberately ignored: scans tolerate unreadable subtrees; version
+      # strings parse best-effort; synthetic-GGUF writes target a bytes.Buffer.
+      - path: (store/scan|doctor/models|doctor/version|internal/ggufgen)
+        linters: [errcheck]
+formatters:
+  enable:
+    - gofmt

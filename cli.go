@@ -144,7 +144,9 @@ func ctl(args []string) int {
 		cmd.SysProcAttr = daemonSysProcAttr()
 		cmd.Stdout = nil
 		cmd.Stderr = nil
-		cmd.Start()
+		if err := cmd.Start(); err != nil {
+			fmt.Fprintln(os.Stderr, "ctl: cannot start daemon:", err)
+		}
 		started := false
 		deadline := time.Now().Add(15 * time.Second)
 		for time.Now().Before(deadline) {
@@ -194,7 +196,7 @@ func ctlRequest(args []string) ([]byte, int, error) {
 		var mm struct {
 			Models []schema.Model `json:"models"`
 		}
-		json.Unmarshal(data, &mm)
+		_ = json.Unmarshal(data, &mm) // best effort: an unparsable body yields no aliases
 		var out []string
 		for _, m := range mm.Models {
 			if m.IsMMProj {
@@ -211,7 +213,7 @@ func ctlRequest(args []string) ([]byte, int, error) {
 			var pp struct {
 				Presets []schema.Preset `json:"presets"`
 			}
-			json.Unmarshal(pdata, &pp)
+			_ = json.Unmarshal(pdata, &pp) // best effort: no presets listed on parse failure
 			names := []string{}
 			for _, p := range pp.Presets {
 				names = append(names, p.Name)
@@ -226,7 +228,9 @@ func ctlRequest(args []string) ([]byte, int, error) {
 		fs := flag.NewFlagSet("open", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
 		preset := fs.String("preset", "", "preset name within the resolved alias")
-		fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			return nil, 2, err
+		}
 		alias := ""
 		rest := fs.Args()
 		if len(rest) > 0 {
@@ -260,7 +264,9 @@ func ctlRequest(args []string) ([]byte, int, error) {
 			fs := flag.NewFlagSet("config-"+action, flag.ContinueOnError)
 			fs.SetOutput(io.Discard)
 			fs.Var(&setList{&sets}, "set", "--set part.field=value (repeatable)")
-			fs.Parse(args[4:])
+			if err := fs.Parse(args[4:]); err != nil {
+				return nil, 2, err
+			}
 			// Fetch the current preset (or first for add) as the base.
 			base := schema.Config{}
 			bStatus := 0
@@ -270,7 +276,7 @@ func ctlRequest(args []string) ([]byte, int, error) {
 					var pp struct {
 						Presets []schema.Preset `json:"presets"`
 					}
-					json.Unmarshal(pdata, &pp)
+					_ = json.Unmarshal(pdata, &pp)
 					for _, p := range pp.Presets {
 						if action == "update" && p.Name == req.Name || action == "add" {
 							base = p.AsConfig()
@@ -437,7 +443,7 @@ func applySet(cfg *schema.Config, kv string) error {
 			return fmt.Errorf("unknown advanced field %q", r)
 		}
 	default:
-		return errors.New("key must start with basic. or advanced.")
+		return errors.New("key must start with basic. or advanced")
 	}
 	return nil
 }

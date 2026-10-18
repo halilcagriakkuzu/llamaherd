@@ -22,10 +22,6 @@ func signalGraceful(pid int) error { return syscall.Kill(pid, syscall.SIGTERM) }
 // forceKill sends SIGKILL to a pid.
 func forceKill(pid int) error { return syscall.Kill(pid, syscall.SIGKILL) }
 
-// detachedAttr starts a child in its own session so it survives the parent
-// (used for the headless control-API daemon).
-func detachedAttr() *syscall.SysProcAttr { return &syscall.SysProcAttr{Setsid: true} }
-
 // groupAttr starts a child in its own process group so its whole tree can be
 // signalled at once (used for the llama.cpp update script).
 func groupAttr() *syscall.SysProcAttr { return &syscall.SysProcAttr{Setpgid: true} }
