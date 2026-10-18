@@ -1,6 +1,6 @@
 package main
 
-// cli.go — `llamaherdctl`-style subcommands on the llamaherd binary (task 13).
+// cli.go — `llamaherdctl`-style subcommands on the llamaherd binary.
 // Everything talks to the local control API (api.Addr()); nothing talks to
 // llama-server directly, so the GUI and CLI share ONE controller instance.
 //
@@ -488,8 +488,6 @@ func (s *setList) String() string {
 	return strings.Join(*s.v, ",")
 }
 func (s *setList) Set(kv string) error { *s.v = append(*s.v, kv); return nil }
-
-// modelsModel placeholder removed below (unused) —
 
 // get is a thin JSON GET helper (path may carry a query string).
 func get(path string) ([]byte, int, error) {

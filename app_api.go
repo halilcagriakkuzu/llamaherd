@@ -1,6 +1,6 @@
 package main
 
-// app_api.go — control surface for the HTTP API (task 13). These methods are
+// app_api.go — control surface for the HTTP API. These methods are
 // the same operations the GUI bindings call, so the window reflects every
 // CLI/API-driven change through the normal emitState path.
 

@@ -2,7 +2,7 @@
 // basic+advanced launch config, presets and the model list rows.
 package schema
 
-// Server is the llama-server state shown by the status panel (task 02).
+// Server is the llama-server state shown by the status panel.
 type Server struct {
 	Status    string `json:"status"` // starting | running | stopped | crashed
 	PID       string `json:"pid"`
@@ -21,7 +21,7 @@ type Server struct {
 	Uptime       string `json:"uptime"`
 }
 
-// Basic holds the BASIC tab field values (task 04).
+// Basic holds the BASIC tab field values.
 type Basic struct {
 	Model           string `json:"model"`
 	Alias           string `json:"alias"`
@@ -38,7 +38,7 @@ type Basic struct {
 	ReasoningBudget int    `json:"reasoningBudget"`
 }
 
-// Advanced holds the ADVANCED tab field values (task 05).
+// Advanced holds the ADVANCED tab field values.
 type Advanced struct {
 	SpecType   string `json:"specType"`
 	DraftNMax  int    `json:"draftNMax"`
@@ -63,34 +63,33 @@ type Advanced struct {
 	OverrideTensor  string `json:"overrideTensor"`
 }
 
-// Config is the ONE shared config shape (README "One typed config"): both
-// forms, all presets, command-line assembly and phase-2 persistence
-// (configs/<alias>.json) read/wrt this struct's basic+advanced parts.
+// Config is the one shared config shape: both forms, all presets, command-line
+// assembly and persistence (configs/<alias>.json) use its basic+advanced parts.
 type Config struct {
 	Basic    Basic    `json:"basic"`
 	Advanced Advanced `json:"advanced"`
 }
 
-// Preset is a named full basic+advanced field set for an alias (task 06).
+// Preset is a named full basic+advanced field set for an alias.
 type Preset struct {
 	Name     string   `json:"name"`
 	Basic    Basic    `json:"basic"`
 	Advanced Advanced `json:"advanced"`
 }
 
-// ToPreset view helpers -----------------------------------------------
+// Preset <-> Config conversions ---------------------------------------
 
 // AsConfig returns the preset as the shared Config shape.
 func (p *Preset) AsConfig() Config {
 	return Config{Basic: p.Basic, Advanced: p.Advanced}
 }
 
-// AsPreset converts a Config into a Preset (used by save in phase 2).
+// AsPreset converts a Config into a named Preset.
 func (c Config) AsPreset(name string) Preset {
 	return Preset{Name: name, Basic: c.Basic, Advanced: c.Advanced}
 }
 
-// Model is one row of the model list (task 03).
+// Model is one row of the model list.
 type Model struct {
 	Display  string `json:"display"`
 	Path     string `json:"path"`

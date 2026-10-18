@@ -14,8 +14,7 @@ import (
 var assets embed.FS
 
 func main() {
-	// Task 13: subcommands on this binary drive the headless core / control
-	// API; no args opens the GUI window (wails.Run below).
+	// Subcommands run the CLI/headless core; no args opens the GUI window.
 	if len(os.Args) > 1 {
 		os.Exit(runCLI(os.Args[1:]))
 	}

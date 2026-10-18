@@ -1,7 +1,6 @@
-// Package control is the ServerManager layer (task 11): real process
-// lifecycle for llama-server. UI-agnostic — the Wails app wires its
-// callbacks into runtime events. Real I/O (net/http, os/exec) lives here,
-// per the README phase-2 rules.
+// Package control manages the llama-server process lifecycle. It is
+// UI-agnostic: the Wails app wires its callbacks into runtime events. Real I/O
+// (net/http, os/exec) lives here.
 package control
 
 import (
@@ -394,9 +393,9 @@ func exitCode(err error) int {
 }
 
 // BuildArgs returns the llama-server arguments for a config, in the flag
-// order used by the user's reference commands. Shares the assembly rules
-// documented in task 07 (skip empty; skip spec-* unless a draft type; booleans
-// only when checked; 0 = skip for numerics).
+// order used by the user's reference commands. Assembly rules: skip empty
+// values; skip spec-* unless a draft type; booleans only when checked; 0 = skip
+// for numerics.
 func BuildArgs(cfg schema.Config) []string {
 	b, adv := cfg.Basic, cfg.Advanced
 	var args []string

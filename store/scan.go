@@ -1,6 +1,6 @@
-// Package store is the first phase-2 piece (task 10): real configs/<alias>.json
-// persistence and recursive *.gguf model scanning. It deliberately contains NO
-// process control — that stays out until task 11 (ServerManager).
+// Package store persists configs/<alias>.json files and scans the models
+// directory recursively for *.gguf files. It deliberately contains NO process
+// control; that lives in the control package.
 package store
 
 import (
@@ -83,8 +83,7 @@ func portablePresetPaths(ps []schema.Preset) []schema.Preset {
 	return out
 }
 
-// SaveAlias writes configs/<alias>.json. os.MkdirAll keeps it working from
-// any cwd relative base; the app passes "configs".
+// SaveAlias writes configs/<alias>.json, creating dir if needed.
 func SaveAlias(dir string, alias string, presets []schema.Preset) error {
 	if len(presets) == 0 {
 		return fmt.Errorf("refusing to save empty preset list for %s", alias)

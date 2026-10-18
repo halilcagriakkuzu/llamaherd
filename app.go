@@ -58,9 +58,9 @@ type Snapshot struct {
 	Download DownloadState `json:"download"`
 }
 
-// App is the Wails-bound application. Task 11: start/stop control the REAL
-// llama-server process (control.ServerManager layer); model scan and
-// configs/<alias>.json persistence are real (task 10).
+// App is the Wails-bound application. Start/stop control the real llama-server
+// process (control.Manager); model scanning and configs/<alias>.json
+// persistence are handled here.
 type App struct {
 	ctx       context.Context
 	mgr       *control.Manager
@@ -91,8 +91,8 @@ type App struct {
 }
 
 // eventMsg serializes every frontend emission through the pump goroutine —
-// runtime.EventsEmit is called ONLY from there (task 13 lesson: HTTP-handler
-// goroutines calling Emit directly crash the Wails runtime).
+// runtime.EventsEmit is called ONLY from there: HTTP-handler goroutines calling
+// Emit directly crash the Wails runtime.
 type eventMsg struct {
 	kind int // 0 = state, 1 = log line
 	line string
@@ -201,8 +201,8 @@ func (a *App) startup(ctx context.Context) {
 	a.initModels()
 	a.initPresets()
 
-	// Select the first loadable model (prefer the flagship), apply its first
-	// preset, then check whether a server is ALREADY listening (external).
+	// Select the first loadable model, apply its first preset, then check
+	// whether a server is ALREADY listening (external).
 	a.selModel = -1
 	if a.selModel < 0 {
 		for i, m := range a.models {
@@ -223,7 +223,7 @@ func (a *App) startup(ctx context.Context) {
 		a.runCfg = &rc
 	}
 
-	// Task 13: serve the control API so CLI/AI agents drive the same App.
+	// Serve the control API so CLI/AI agents drive the same App.
 	go func() {
 		if err := api.Serve(a); err != nil {
 			a.Log("ctl api: " + err.Error())
@@ -356,7 +356,7 @@ func (a *App) GetState() Snapshot {
 }
 
 // SelectModel selects a model list row. mmproj rows fill the --mmproj field
-// and do NOT change the model/config selection (task 03).
+// and do NOT change the model/config selection.
 func (a *App) SelectModel(index int) {
 	if index < 0 || index >= len(a.models) {
 		return
@@ -375,7 +375,7 @@ func (a *App) SelectModel(index int) {
 	a.emitState()
 }
 
-// SelectPreset applies a named preset to the shared Config (task 06).
+// SelectPreset applies a named preset to the shared Config.
 func (a *App) SelectPreset(name string) {
 	p := a.findPreset(a.alias(), name)
 	if p == nil {
@@ -398,7 +398,7 @@ func (a *App) UpdateConfig(cfg schema.Config) {
 }
 
 // SaveConfig writes the current config as the current preset name into
-// configs/<alias>.json (task 10: real file I/O), upserting by preset name.
+// configs/<alias>.json, upserting by preset name.
 func (a *App) SaveConfig() {
 	alias := a.alias()
 	names := a.presetNames()
@@ -457,7 +457,7 @@ func (a *App) LoadConfig() {
 	a.emitState()
 }
 
-// StartServer launches the real llama-server (task 11). Errors (port busy,
+// StartServer launches the real llama-server. Errors (port busy,
 // missing binary) are logged and leave the state machine untouched. Before
 // spawning anything it runs the VRAM pre-flight: a launch that would exceed
 // 90% of the GPU's memory is refused outright (that runaway allocation is what
@@ -569,8 +569,7 @@ func (a *App) snapshot() Snapshot {
 		srv.WSLIP = settings.LocalIPv4()
 	}
 	// Model / context / GPU layers describe the LOADED server, never the
-	// currently selected form values (task: status must reflect the running
-	// model). When nothing is loaded these stay "—".
+	// currently selected form values. When nothing is loaded these stay "—".
 	srv.Model = "—"
 	srv.Context = "—"
 	srv.GPULayers = "—"
@@ -603,7 +602,7 @@ func (a *App) snapshot() Snapshot {
 		srv.PID = "—"
 		srv.Uptime = "00:00:00"
 	}
-	// VRAM / CPU RAM rows: live numbers from nvidia-smi + /proc (task 12).
+	// VRAM / CPU RAM rows: live numbers from nvidia-smi + /proc.
 	srv.VRAM = control.HumanMB(info.VRAMMB)
 	srv.CPURAM = control.HumanMB(info.RAMMB)
 	s := Snapshot{
@@ -671,8 +670,8 @@ func (a *App) Log(line string) {
 	a.queue(eventMsg{kind: 1, line: line})
 }
 
-// queue hands an event to the pump; drops rather than blocks, and logs the
-// drop count into the log stream itself.
+// queue hands an event to the pump. It drops the event rather than blocking
+// when the buffer is full.
 func (a *App) queue(e eventMsg) {
 	select {
 	case a.eventCh <- e:
