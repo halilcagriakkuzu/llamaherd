@@ -37,7 +37,7 @@
     vramEstimate: "estimated VRAM 13.6 GiB / 16.0 GiB (85%) [model 12.9, KV 0.55+0.55, SSM 0.03, compute 0.6; all layers on GPU, 16/65 layers full-attention]",
     llamaUpdating: false, firstRun: params.get("firstrun") === "1",
     serverBin: "/home/me/llama.cpp/build/bin/llama-server", modelsDir: "/home/me/LlamaHerd/models", userConfigPath: "/home/me/.config/llamaherd/config.json",
-    doctor: { ok: true, summary: "all checks passed", checks: [
+    doctor: { ok: true, summary: "1 warning", checks: [
       { id: "server-bin", title: "llama-server binary", status: "ok", detail: "/home/me/llama.cpp/build/bin/llama-server" },
       { id: "server-version", title: "llama-server version", status: "ok", detail: "0.7.0-dev (build 11708, commit 83f938941)" },
       { id: "gpu", title: "GPU / CUDA", status: "ok", detail: "1 GPU(s), 16.0 GiB total: NVIDIA GeForce RTX 4070 Ti SUPER" },
