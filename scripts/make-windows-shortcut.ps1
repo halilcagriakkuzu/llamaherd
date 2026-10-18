@@ -36,10 +36,15 @@ if (-not (Test-Path $WslgExe)) {
 # --- icon: copy into the Windows profile so the .lnk can reference a drive path
 $iconDir  = Join-Path $env:LOCALAPPDATA "LlamaHerd"
 New-Item -ItemType Directory -Force -Path $iconDir | Out-Null
-$iconPath = Join-Path $iconDir "icon.ico"
-
 $linuxIconSource = "\\wsl.localhost\$Distro$($RepoPath -replace '/', '\')\build\windows\icon.ico"
+# The file name carries a content hash: Explorer caches icons by path, so a
+# changed icon under the same name would keep showing the old picture.
+$iconPath = Join-Path $iconDir "icon.ico"
 if (Test-Path $linuxIconSource) {
+    $hash = (Get-FileHash -Algorithm SHA1 $linuxIconSource).Hash.Substring(0, 8).ToLower()
+    $iconPath = Join-Path $iconDir "icon-$hash.ico"
+    Get-ChildItem $iconDir -Filter "icon*.ico" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -ne $iconPath } | Remove-Item -Force -ErrorAction SilentlyContinue
     Copy-Item -Force $linuxIconSource $iconPath
 } else {
     Write-Warning "icon not found at $linuxIconSource (run scripts/make-icon.py first)"
@@ -68,6 +73,9 @@ function New-LlmShortcut([string]$Path) {
 
 New-LlmShortcut (Join-Path ([Environment]::GetFolderPath("Desktop")) "LlamaHerd.lnk")
 New-LlmShortcut (Join-Path ([Environment]::GetFolderPath("Programs")) "LlamaHerd.lnk")
+
+# Ask Explorer to refresh its icon cache (no restart needed).
+try { & "$env:SystemRoot\System32\ie4uinit.exe" -show } catch { }
 
 Write-Host ""
 Write-Host "Done. Target : $WslgExe"
