@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LlamaHerd — llama.cpp control panel</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main id="main">
+  <aside id="left">
+    <section class="group" id="statusGroup">
+      <h2 class="group-title">Status</h2>
+      <div id="statusHead">
+        <span id="statusDot" class="dot"></span>
+        <span id="statusWord">—</span>
+      </div>
+      <div class="kv">
+        <span class="kv-l">PID</span><span class="kv-v" id="kv-pid">—</span>
+        <span class="kv-l">Listen</span><span class="kv-v" id="kv-listen">—</span>
+        <span class="kv-l">WSL IP</span><span class="kv-v" id="kv-wslip">—</span>
+        <span class="kv-l">Model</span><span class="kv-v" id="kv-model">—</span>
+        <span class="kv-l">Context</span><span class="kv-v" id="kv-context">—</span>
+        <span class="kv-l">GPU layers</span><span class="kv-v" id="kv-gpulayers">—</span>
+        <span class="kv-l">VRAM</span><span class="kv-v" id="kv-vram">—</span>
+        <span class="kv-l">CPU RAM</span><span class="kv-v" id="kv-cpuram">—</span>
+        <span class="kv-l">Uptime</span><span class="kv-v" id="kv-uptime">—</span>
+      </div>
+    </section>
+
+    <section class="group stretch" id="modelsGroup">
+      <h2 class="group-title">Models</h2>
+      <div id="modelsActions"><button id="dlOpen" class="tiny">＋ Download a model</button></div>
+      <div id="crumbs" class="crumbs"></div>
+      <ul id="modelList"></ul>
+    </section>
+  </aside>
+
+  <section id="right">
+    <div id="warnBanner" class="hidden" role="alert"></div>
+    <div id="doctorBanner" class="hidden" role="status"></div>
+    <div id="actions">
+      <select id="presetSel" title="Preset"></select>
+      <button id="saveBtn">Save cfg</button>
+      <button id="loadBtn">Load cfg</button>
+      <span class="spacer"></span>
+      <button id="startBtn" class="btn-start">Start</button>
+      <button id="stopBtn" class="btn-stop">Stop</button>
+      <span id="configPath">configs/—.json</span>
+    </div>
+
+    <section class="group stretch" id="configGroup">
+      <h2 class="group-title">Config</h2>
+      <div id="tabs">
+        <button id="tabBtnBasic" class="tab active">Basic</button>
+        <button id="tabBtnAdvanced" class="tab">Advanced</button>
+        <button id="tabBtnLlama" class="tab">llama.cpp</button>
+      </div>
+
+      <div id="tabPanels" class="stretch">
+        <div id="tabBasic" class="form panel active">
+          <label class="fl" for="f-model">Model <span class="flag">--model</span></label>
+          <input id="f-model" data-key="model" data-group="basic" readonly spellcheck="false">
+
+          <label class="fl" for="f-alias">Alias <span class="flag">--alias</span></label>
+          <input id="f-alias" data-key="alias" data-group="basic" spellcheck="false">
+
+          <label class="fl" for="f-host">Host <span class="flag">--host</span></label>
+          <input id="f-host" data-key="host" data-group="basic" spellcheck="false">
+
+          <label class="fl" for="f-port">Port <span class="flag">--port</span></label>
+          <input id="f-port" data-key="port" data-group="basic" type="number" min="1" max="65535">
+
+          <label class="fl" for="f-context">Context <span class="flag">-c</span></label>
+          <input id="f-context" data-key="context" data-group="basic" type="number" min="1" max="1048576">
+
+          <label class="fl" for="f-gpuLayers">GPU layers <span class="flag">-ngl</span></label>
+          <div class="fieldrow">
+            <input id="f-gpuLayers" data-key="gpuLayers" data-group="basic" spellcheck="false">
+            <label class="inline" title="send -ngl all"><input type="checkbox" id="nglAll"> all</label>
+          </div>
+
+          <label class="fl" for="visionChk">Vision <span class="flag">--mmproj</span></label>
+          <div class="fieldrow">
+            <input type="checkbox" id="visionChk">
+            <span id="visionHint" class="hint"></span>
+          </div>
+
+          <label class="fl" for="mtpChk">MTP <span class="flag">--spec-type</span></label>
+          <div class="fieldrow">
+            <input type="checkbox" id="mtpChk">
+            <span id="mtpHint" class="hint"></span>
+          </div>
+
+          <label class="fl" for="f-parallelSlots">Parallel slots <span class="flag">-np</span></label>
+          <input id="f-parallelSlots" data-key="parallelSlots" data-group="basic" type="number" min="1" max="64">
+
+          <label class="fl" for="f-flashAttention">Flash attention <span class="flag">-fa</span></label>
+          <select id="f-flashAttention" data-key="flashAttention" data-group="basic">
+            <option value="off">off</option>
+            <option value="on">on</option>
+          </select>
+
+          <label class="fl" for="f-kCache">K cache type <span class="flag">-ctk</span></label>
+          <select id="f-kCache" data-key="kCache" data-group="basic">
+            <option value="f16">f16</option>
+            <option value="q8_0">q8_0</option>
+            <option value="q4_0">q4_0</option>
+            <option value="q4_1">q4_1</option>
+            <option value="q5_1">q5_1</option>
+          </select>
+
+          <label class="fl" for="f-vCache">V cache type <span class="flag">-ctv</span></label>
+          <select id="f-vCache" data-key="vCache" data-group="basic">
+            <option value="f16">f16</option>
+            <option value="q8_0">q8_0</option>
+            <option value="q4_0">q4_0</option>
+            <option value="q4_1">q4_1</option>
+            <option value="q5_1">q5_1</option>
+          </select>
+        </div>
+
+        <div id="tabAdvanced" class="panel">
+          <div class="sect">
+            <h3 class="sect-title">Chat &amp; reasoning</h3>
+            <div class="form">
+              <label class="fl" for="f-jinja">Jinja <span class="flag">--jinja</span></label>
+              <input id="f-jinja" data-key="jinja" data-group="basic" type="checkbox">
+
+              <label class="fl" for="f-reasoningFmt">Reasoning format <span class="flag">--reasoning-format</span></label>
+              <select id="f-reasoningFmt" data-key="reasoningFmt" data-group="basic">
+                <option value="none">none</option>
+                <option value="deepseek">deepseek</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="sect" id="sectSpec">
+            <h3 class="sect-title">Speculative decoding (MTP)</h3>
+            <div class="form">
+              <label class="fl" for="f-specType">Spec type <span class="flag">--spec-type</span></label>
+              <select id="f-specType" data-key="specType" data-group="advanced">
+                <option value="none">none</option>
+                <option value="draft-mtp">draft-mtp</option>
+                <option value="draft-simple">draft-simple</option>
+              </select>
+
+              <label class="fl spec-lbl" for="f-draftModel">Draft model <span class="flag">--spec-draft-model</span></label>
+              <input id="f-draftModel" data-key="draftModel" data-group="advanced" placeholder="(skip)" spellcheck="false">
+
+              <label class="fl spec-lbl" for="f-draftNMax">Draft n max <span class="flag">--spec-draft-n-max</span></label>
+              <input id="f-draftNMax" data-key="draftNMax" data-group="advanced" type="number" min="0" max="32">
+
+              <label class="fl spec-lbl" for="f-draftNgl">Draft ngl <span class="flag">--spec-draft-ngl</span></label>
+              <input id="f-draftNgl" data-key="draftNgl" data-group="advanced" placeholder="(skip)" spellcheck="false">
+
+              <label class="fl spec-lbl" for="f-draftTypeK">Draft type K <span class="flag">--spec-draft-type-k</span></label>
+              <select id="f-draftTypeK" data-key="draftTypeK" data-group="advanced">
+                <option value="">auto</option>
+                <option value="f16">f16</option>
+                <option value="q8_0">q8_0</option>
+                <option value="q4_0">q4_0</option>
+                <option value="q4_1">q4_1</option>
+                <option value="q5_1">q5_1</option>
+              </select>
+
+              <label class="fl spec-lbl" for="f-draftTypeV">Draft type V <span class="flag">--spec-draft-type-v</span></label>
+              <select id="f-draftTypeV" data-key="draftTypeV" data-group="advanced">
+                <option value="">auto</option>
+                <option value="f16">f16</option>
+                <option value="q8_0">q8_0</option>
+                <option value="q4_0">q4_0</option>
+                <option value="q4_1">q4_1</option>
+                <option value="q5_1">q5_1</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="sect" id="sectVision">
+            <h3 class="sect-title">Vision</h3>
+            <div class="form">
+              <label class="fl" for="f-mmproj">mmproj <span class="flag">--mmproj</span></label>
+              <div class="fieldrow">
+                <input id="f-mmproj" data-key="mmproj" data-group="advanced" spellcheck="false">
+                <button id="browseBtn" class="tiny" title="Pick mmproj file (dummy)">Browse…</button>
+              </div>
+
+              <label class="fl" for="f-noMMProjOffload">No mmproj offload <span class="flag">--no-mmproj-offload</span></label>
+              <input id="f-noMMProjOffload" data-key="noMMProjOffload" data-group="advanced" type="checkbox">
+            </div>
+          </div>
+
+          <div class="sect">
+            <h3 class="sect-title">Runtime</h3>
+            <div class="form">
+              <label class="fl" for="f-fit">Fit <span class="flag">--fit</span></label>
+              <select id="f-fit" data-key="fit" data-group="advanced">
+                <option value="off">off</option>
+                <option value="on">on</option>
+              </select>
+
+              <label class="fl" for="f-perf">Perf <span class="flag">--perf</span></label>
+              <input id="f-perf" data-key="perf" data-group="advanced" type="checkbox">
+
+              <label class="fl" for="f-sleepIdle">Sleep idle (s) <span class="flag">--sleep-idle-seconds</span></label>
+              <input id="f-sleepIdle" data-key="sleepIdle" data-group="advanced" type="number" min="0" max="86400">
+
+              <label class="fl" for="f-cacheRAM">Cache RAM (MB) <span class="flag">--cache-ram</span></label>
+              <input id="f-cacheRAM" data-key="cacheRAM" data-group="advanced" type="number" min="0">
+
+              <label class="fl" for="f-mlock">mlock <span class="flag">-mlock</span></label>
+              <input id="f-mlock" data-key="mlock" data-group="advanced" type="checkbox">
+
+              <label class="fl" for="f-noMmap">no mmap <span class="flag">-no-mmap</span></label>
+              <input id="f-noMmap" data-key="noMmap" data-group="advanced" type="checkbox">
+
+              <label class="fl" for="f-cpuThreads">CPU threads <span class="flag">-t</span></label>
+              <input id="f-cpuThreads" data-key="cpuThreads" data-group="advanced" type="number" min="0">
+
+              <label class="fl" for="f-ubatch">Micro-batch <span class="flag">-ub</span></label>
+              <input id="f-ubatch" data-key="ubatch" data-group="advanced" type="number" min="0">
+
+              <label class="fl" for="f-batch">Batch <span class="flag">-b</span></label>
+              <input id="f-batch" data-key="batch" data-group="advanced" type="number" min="0">
+
+              <label class="fl" for="f-overrideTensor">Override tensor <span class="flag">-ot</span></label>
+              <input id="f-overrideTensor" data-key="overrideTensor" data-group="advanced" type="text" placeholder='blk\.(4[4-9]|5[0-9]|6[0-4])\.ffn_.*=CPU'>
+            </div>
+          </div>
+        </div>
+        <div id="tabLlama" class="panel llama">
+          <h3 class="llama-h">Environment check</h3>
+          <div id="doctorList" class="doctor"></div>
+          <div class="llama-actions">
+            <button id="doctorRefresh" class="tiny">Re-check environment</button>
+            <span id="doctorSummary" class="llama-hint"></span>
+          </div>
+          <div id="llamaInfo" class="llama-kv"></div>
+          <div class="llama-actions">
+            <button id="llamaRefresh" class="tiny">Refresh</button>
+            <button id="llamaCheck" class="tiny">Check for updates</button>
+            <button id="llamaUpdate" class="tiny btn-start">Update &amp; rebuild</button>
+            <button id="llamaCancel" class="tiny" hidden>Cancel update</button>
+            <span id="llamaLast"></span>
+          </div>
+          <h3 class="llama-h">llama-server processes</h3>
+          <div id="llamaProcs"></div>
+          <div class="llama-actions">
+            <button id="llamaKill" class="tiny btn-stop">Force stop all</button>
+            <span class="llama-hint">SIGTERM, then SIGKILL after 4 s &mdash; includes servers LlamaHerd did not start.</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="cmdline" title="preview only — never executed"></div>
+      <div id="vramEstimate" title="estimated GPU memory usage (before start)"></div>
+    </section>
+
+    <section class="group" id="logsGroup">
+      <h2 class="group-title" id="logsTitle" role="button" tabindex="0" title="show / hide logs">▾ Logs</h2>
+      <div id="logView"></div>
+    </section>
+  </section>
+  <div id="firstRun" class="modal" hidden>
+    <div class="modal-box">
+      <h2 class="modal-title">Welcome to LlamaHerd</h2>
+      <p class="modal-text">Set the paths for this machine. They are saved to
+        <code id="frPath"></code> and can be changed later.</p>
+      <label class="fl" for="frBin">llama-server binary</label>
+      <input id="frBin" spellcheck="false" placeholder="/path/to/llama.cpp/build/bin/llama-server">
+      <label class="fl" for="frModels">Models directory</label>
+      <input id="frModels" spellcheck="false" placeholder="/path/to/models">
+      <p class="modal-text">No models yet? Download a starter model from Hugging Face.</p>
+      <button id="frDownload" class="tiny">Download a starter model…</button>
+      <div class="modal-actions">
+        <span id="frMsg" class="modal-msg"></span>
+        <button id="frSave" class="btn-start">Save &amp; continue</button>
+      </div>
+    </div>
+  </div>
+  <div id="dlModal" class="modal" hidden>
+    <div class="modal-box">
+      <h2 class="modal-title">Download a model</h2>
+      <p class="modal-text" id="dlSummary">Recommended for this machine:</p>
+      <div id="dlList" class="dl-list"></div>
+      <h3 class="llama-h">From the Hugging Face Hub</h3>
+      <label class="fl" for="dlRef">Repo or URL <span class="flag">owner/name</span></label>
+      <input id="dlRef" spellcheck="false" placeholder="Qwen/Qwen2.5-7B-Instruct-GGUF">
+      <label class="fl" for="dlFile">File <span class="flag">optional</span></label>
+      <input id="dlFile" spellcheck="false" placeholder="default: best Q4_K_M .gguf">
+      <div class="modal-actions">
+        <button id="dlStart" class="btn-start">Download</button>
+        <button id="dlClose" class="tiny">Close</button>
+      </div>
+      <details id="dlTokenBox">
+        <summary>Hugging Face token (private / gated repos)</summary>
+        <input id="dlToken" type="password" spellcheck="false" placeholder="hf_…">
+        <div class="modal-actions">
+          <span id="dlTokenMsg" class="modal-msg"></span>
+          <button id="dlTokenSave" class="tiny">Save token</button>
+          <button id="dlTokenClear" class="tiny">Clear</button>
+        </div>
+      </details>
+      <div id="dlProgress" class="dl-progress" hidden>
+        <div id="dlBarOuter"><div id="dlBarInner"></div></div>
+        <div id="dlProgressText" class="dl-progress-text"></div>
+        <button id="dlCancel" class="tiny btn-stop">Cancel</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer id="statusBar">
+  <span id="statusInfo">llama-server process control</span>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

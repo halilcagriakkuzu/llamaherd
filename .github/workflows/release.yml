@@ -1,0 +1,140 @@
+name: Release
+
+# Builds prebuilt binaries and attaches them to a GitHub Release.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# Asset names are stable (no version in the name) so the installer can always
+# fetch the newest one via /releases/latest/download/<asset>:
+#
+#   llamaherd_linux_amd64.tar.gz
+#   llamaherd_linux_arm64.tar.gz
+#   llamaherd_darwin_amd64.tar.gz
+#   llamaherd_darwin_arm64.tar.gz
+#   llamaherd_windows_amd64.zip
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    # arm64 Linux and native Windows are best-effort: a failure there must not
+    # block the other artifacts or the release.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            asset: llamaherd_linux_amd64
+            tags: webkit2_41,desktop,production
+            bin: llamaherd
+            experimental: false
+          - os: ubuntu-24.04-arm
+            asset: llamaherd_linux_arm64
+            tags: webkit2_41,desktop,production
+            bin: llamaherd
+            experimental: true
+          - os: macos-13
+            asset: llamaherd_darwin_amd64
+            tags: desktop,production
+            bin: llamaherd
+            experimental: false
+          - os: macos-14
+            asset: llamaherd_darwin_arm64
+            tags: desktop,production
+            bin: llamaherd
+            experimental: false
+          - os: windows-latest
+            asset: llamaherd_windows_amd64
+            tags: desktop,production
+            bin: llamaherd.exe
+            experimental: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Windows toolchain (MSYS2 / mingw for cgo)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-gcc
+
+      - name: Build (non-Windows)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist/package
+          CGO_ENABLED=1 go build -tags "${{ matrix.tags }}" -o "dist/package/${{ matrix.bin }}" .
+          cp assets/llamaherd.png LICENSE README.md dist/package/
+          [ -d configs ] && cp -r configs dist/package/ || true
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          mkdir -p dist/package
+          go build -tags "${{ matrix.tags }}" -o "dist/package/${{ matrix.bin }}" .
+          cp assets/llamaherd.png LICENSE README.md dist/package/
+          [ -d configs ] && cp -r configs dist/package/ || true
+
+      - name: Package (tar.gz)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          tar -C dist/package -czf "dist/${{ matrix.asset }}.tar.gz" .
+
+      - name: Package (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/package/* -DestinationPath "dist/${{ matrix.asset }}.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: |
+            dist/${{ matrix.asset }}.tar.gz
+            dist/${{ matrix.asset }}.zip
+          if-no-files-found: ignore
+
+  release:
+    name: publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

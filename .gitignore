@@ -1,0 +1,33 @@
+# Build artifacts
+/build/
+/bin/
+*.exe
+*.test
+*.out
+*.log
+
+# Wails frontend scaffolding (frontend/dist is prebuilt and committed)
+/frontend/node_modules/
+/frontend/wailsjs/
+
+# Runtime data: scanned models, per-alias presets, per-model metadata.
+# Regenerated from the built-in tables in dummy/data.go.
+/models/
+/configs/
+/library/
+*.gguf
+
+# Hugging Face token (never commit)
+/hf_token
+/hf_token.*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+
+# Local agent tooling
+.claude/settings.local.json
