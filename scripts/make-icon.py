@@ -75,7 +75,9 @@ if __name__ == "__main__":
     out_dir = os.path.join(root, "build", "windows")
     os.makedirs(out_dir, exist_ok=True)
     ico = os.path.join(out_dir, "icon.ico")
-    big.save(ico, sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
+    # BMP-encoded entries: the most compatible form for Explorer/shortcuts
+    # (PNG-compressed small sizes can show up as a blank document icon).
+    big.save(ico, sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)], bitmap_format="bmp")
     print("wrote", ico)
 
     assets_dir = os.path.join(root, "assets")
