@@ -23,9 +23,6 @@ Open work only — finished items are removed (see `CHANGELOG.md` for what shipp
   SmartScreen / Gatekeeper warnings.
 - [ ] **Native packages:** `.deb`/`.rpm`, winget/`.msi`, `.dmg`/Homebrew cask (the script
   installer is the supported path for now).
-- [ ] **Docs:** list the full Wails backend contract (every bound `App` method and the
-  `state` / `log` events) in `docs/architecture.md`; the diagram, "one controller" model
-  and add-a-preset/model notes are already there.
 - [ ] **App update check:** notify (or optionally self-update) when a newer GitHub release
   exists.
 - [ ] **Library curator:** import existing model files, detect duplicates (rename,

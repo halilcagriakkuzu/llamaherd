@@ -59,7 +59,7 @@ OS-specific code is split with build tags (`control/proc_*.go`, `doctor/disk_*.g
 - **One controller.** State changes go through `App` methods so the GUI, CLI and API
   never diverge. A new capability usually means: an `App` method → an `api.Control`
   method + endpoint (+ test with the fake in `api/api_test.go`) → a CLI subcommand →
-  UI wiring → a `CHANGELOG.md` entry and README/API table update.
+  UI wiring → a `CHANGELOG.md` entry and README / `docs/cli-and-api.md` update.
 - **Frontend:** keep element IDs stable (`main.js` addresses them directly), keep it
   dependency-free, and keep both themes working (colours come from CSS variables).
 - **I/O boundaries:** `net/http` and `os/exec` belong in `control/`, `api/`, `hf/`,
@@ -90,7 +90,7 @@ OS-specific code is split with build tags (`control/proc_*.go`, `doctor/disk_*.g
 ## Paths and configuration
 
 Resolution order is always: environment variable → user config file → built-in default.
-See the README ("Configuration") for the full table. Notable defaults: models dir
+See [`docs/configuration.md`](docs/configuration.md) for the full table. Notable defaults: models dir
 `~/LlamaHerd/models`, control API `127.0.0.1:8517`, per-user data dir
 (`configs/`, `library/`) under the OS data directory. A `serverBin` of the form
 `wsl:<distro>:/path` lets the Windows app drive a `llama-server` inside WSL.
