@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Windows app can drive a `llama-server` inside WSL: `serverBin` =
+  `wsl:<distro>:/path` launches via `wsl.exe`, translates Windows/UNC paths,
+  stops the Linux process, and `doctor` checks the binary + warns about slow
+  `/mnt/<drive>` model access.
+
 ### Changed
 
 - Default models directory is now `~/LlamaHerd/models` (created on first run).

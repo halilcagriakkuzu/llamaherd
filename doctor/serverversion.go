@@ -4,17 +4,21 @@ import (
 	"fmt"
 	"os"
 
+	"llamaherd/control"
 	"llamaherd/settings"
 )
 
 func checkServerVersion() Check {
 	c := Check{ID: "server-version", Title: "llama-server version"}
 	p := settings.ServerBin()
-	if _, err := os.Stat(p); err != nil {
+	name, args := p, []string{"--version"}
+	if w, ok := control.ParseWSLBin(p); ok {
+		name, args = w.Run(w.Path, "--version")
+	} else if _, err := os.Stat(p); err != nil {
 		c.Status, c.Detail = StatusSkip, "binary not found"
 		return c
 	}
-	out, err := execOut(p, "--version")
+	out, err := execOut(name, args...)
 	if err != nil && out == "" {
 		c.Status, c.Detail = StatusWarn, "could not run --version"
 		c.Fix = fmt.Sprintf("run it directly to see the error: %s --version", p)

@@ -12,6 +12,8 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -146,8 +148,16 @@ func (m *Manager) Start(cfg schema.Config) error {
 		m.mu.Unlock()
 		return fmt.Errorf("something is already listening on %s — Stop it first", addr)
 	}
+	name, argv := m.bin, BuildArgs(cfg)
+	if w, ok := ParseWSLBin(m.bin); ok {
+		if runtime.GOOS != "windows" {
+			m.mu.Unlock()
+			return fmt.Errorf("%q is only valid when LlamaHerd runs on Windows", m.bin)
+		}
+		name, argv = w.Command(argv)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, m.bin, BuildArgs(cfg)...)
+	cmd := exec.CommandContext(ctx, name, argv...)
 	cmd.Cancel = func() error { return terminate(cmd) }
 	cmd.WaitDelay = 5 * time.Second
 	stdout, err := cmd.StdoutPipe()
@@ -177,7 +187,7 @@ func (m *Manager) Start(cfg schema.Config) error {
 	startedAt := time.Now()
 	m.mu.Unlock()
 
-	m.log(fmt.Sprintf("pid %d spawned: %s %s", pid, m.bin, strings.Join(BuildArgs(cfg), " ")))
+	m.log(fmt.Sprintf("pid %d spawned: %s %s", pid, name, strings.Join(argv, " ")))
 	m.emit()
 
 	go m.pipeLogs(stdout, "stdout")
@@ -208,6 +218,7 @@ func (m *Manager) Stop() error {
 		m.status = StatusStopping
 	}
 	cancel := m.cancel
+	listen := m.listen
 	pid := 0
 	if m.cmd != nil {
 		pid = m.cmd.Process.Pid
@@ -217,6 +228,13 @@ func (m *Manager) Stop() error {
 	m.log(fmt.Sprintf("sending SIGTERM (pid %d)", pid))
 	m.emit()
 	cancel()
+	if w, ok := ParseWSLBin(m.bin); ok {
+		// Killing wsl.exe does not reliably stop the Linux process.
+		if _, port, ok := splitHostPort(listen); ok {
+			name, args := w.StopCommand(port)
+			go func() { _ = exec.Command(name, args...).Run() }()
+		}
+	}
 	return nil
 }
 
@@ -452,4 +470,14 @@ func BuildArgs(cfg schema.Config) []string {
 	}
 	add("-ot", adv.OverrideTensor)
 	return args
+}
+
+// splitHostPort parses "host:port".
+func splitHostPort(addr string) (string, int, bool) {
+	i := strings.LastIndex(addr, ":")
+	if i < 0 {
+		return "", 0, false
+	}
+	n, err := strconv.Atoi(addr[i+1:])
+	return addr[:i], n, err == nil
 }

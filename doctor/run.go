@@ -26,6 +26,7 @@ func Run() Report {
 		checkGUILibs(),
 		checkDisplay(),
 		checkModelsDir(),
+		checkWSLModels(),
 		checkDisk(),
 		checkAPIPort(),
 	)

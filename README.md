@@ -249,6 +249,28 @@ go build -tags webkit2_41,desktop,production \
 | Windows 11 | yes | yes | Native WebView2, or run the GUI inside WSL (WSLg). |
 | macOS | yes | yes | Metal is used automatically; CUDA is NVIDIA-only. |
 
+### Windows 11 setups
+
+| Scenario | LlamaHerd runs in | `llama-server` | Models | Setup |
+| --- | --- | --- | --- | --- |
+| **A. No WSL** | Windows (native) | `llama-server.exe` on Windows | Windows folder (default `%USERPROFILE%\LlamaHerd\models`) | `install.ps1 -Mode native`; point `serverBin` at the `.exe` |
+| **B. WSL, all inside WSL** | WSL (GUI on WSLg) | Linux build in WSL | WSL folder (`~/LlamaHerd/models`) | `install.ps1` (default mode) — fastest loads |
+| **C. Windows app + WSL server** | Windows (native) | Linux build in WSL | Windows *or* WSL folder | set `serverBin` to `wsl:<distro>:/path/to/llama-server` |
+
+Scenario C details:
+
+- `LLAMAHERD_SERVER_BIN=wsl:Ubuntu:/home/me/llama.cpp/build/bin/llama-server`
+  (or `serverBin` in `%APPDATA%\llamaherd\config.json`; `wsl:/path` uses the default distro).
+  The server is launched through `wsl.exe`, paths are translated for you
+  (`C:\x` → `/mnt/c/x`, `\\wsl.localhost\Ubuntu\home\me\m` → `/home/me/m`) and
+  Stop terminates the process inside WSL.
+- **Models on a Windows drive** work but load slowly (WSL reads them over
+  `/mnt/c`). **Models inside WSL are fast**: set the models directory to the UNC
+  path `\\wsl.localhost\Ubuntu\home\me\models` — the Windows app scans it and
+  the server reads them natively. `llamaherd doctor` warns about the slow case.
+- `llama-server` must listen on `127.0.0.1`; WSL2's localhost forwarding makes it
+  reachable from Windows.
+
 Known limitations (see `BACKLOG.md` section 5):
 
 - **Model directory & paths** are stored relative to `LLAMAHERD_MODELS_DIR` and
