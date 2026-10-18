@@ -29,8 +29,9 @@ jobs:
     continue-on-error: ${{ matrix.experimental }}
     # Tag builds stamp the version into the binary (llamaherd version).
     env:
-      # Wails' macOS webview needs UTType (UniformTypeIdentifiers).
-      CGO_LDFLAGS: ${{ runner.os == 'macOS' && '-framework UniformTypeIdentifiers' || '' }}
+      # Wails' macOS webview needs UTType (UniformTypeIdentifiers); the
+      # `runner` context is unavailable at job level, so key off matrix.os.
+      CGO_LDFLAGS: ${{ startsWith(matrix.os, 'macos') && '-framework UniformTypeIdentifiers' || '' }}
       VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
     strategy:
       fail-fast: false
