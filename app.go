@@ -552,7 +552,11 @@ func (a *App) snapshot() Snapshot {
 	case control.StatusStopped, control.StatusCrashed:
 		a.runCfg = nil // nothing is loaded anymore
 	}
-	srv := schema.Server{PID: "—", Uptime: "00:00:00", VRAM: "—", CPURAM: "—"}
+	sp := a.mgr.Speed()
+	if info.Status != control.StatusRunning {
+		sp = control.SpeedStats{} // only the live server's speed is shown
+	}
+	srv := schema.Server{PID: "—", Uptime: "00:00:00", VRAM: "—", CPURAM: "—", TokPerSec: sp.Summary(), TokPerSecTip: sp.Tooltip()}
 	srv.Status = string(info.Status)
 	srv.Listen = info.Listen
 	srv.Binary = a.bin

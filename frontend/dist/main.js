@@ -14,6 +14,7 @@
       model: $("kv-model"),
       context: $("kv-context"),
       gpulayers: $("kv-gpulayers"),
+      tps: $("kv-tps"),
       vram: $("kv-vram"),
       cpuram: $("kv-cpuram"),
       uptime: $("kv-uptime"),
@@ -320,6 +321,8 @@
     el.kv.model.textContent = srv.model || "—";
     el.kv.context.textContent = srv.context || "—";
     el.kv.gpulayers.textContent = srv.gpuLayers || "—";
+    el.kv.tps.textContent = srv.tokPerSec || "—";
+    el.kv.tps.title = srv.tokPerSecTip || "";
     el.kv.vram.textContent = srv.vram || "—";
     el.kv.cpuram.textContent = srv.cpuRam || "—";
     el.kv.uptime.textContent = srv.uptime || "—";

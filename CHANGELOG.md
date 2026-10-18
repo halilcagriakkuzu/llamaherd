@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Generation speed** in the Server box: average tokens/s of the managed server's finished
+  requests (token-weighted, parsed from llama-server's per-request timing line);
+  hover for min / max / last and the request count. Resets on every start; not
+  measured for servers LlamaHerd did not start.
+
 ### Changed
 
 - **New UI.** Card-based layout with an app bar (logo, live status pill, Start/Stop),

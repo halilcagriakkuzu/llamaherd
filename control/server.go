@@ -60,7 +60,8 @@ type Manager struct {
 	vramMB   int
 	ramMB    int
 	nCtx     int
-	onChange func() // called on every state transition (any goroutine)
+	speed    SpeedStats // generation speed since the last Start
+	onChange func()     // called on every state transition (any goroutine)
 	onLog    func(string)
 }
 
@@ -181,6 +182,7 @@ func (m *Manager) Start(cfg schema.Config) error {
 	m.cmd = cmd
 	m.external = false
 	m.exit = 0
+	m.speed = SpeedStats{}
 	m.listen = addr
 	m.setStatusLocked(StatusStarting)
 	pid := cmd.Process.Pid
@@ -243,7 +245,9 @@ func (m *Manager) pipeLogs(r interface{ Read([]byte) (int, error) }, stream stri
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
-		m.log(fmt.Sprintf("[%s] %s", stream, sc.Text()))
+		line := sc.Text()
+		m.recordLine(line)
+		m.log(fmt.Sprintf("[%s] %s", stream, line))
 	}
 }
 

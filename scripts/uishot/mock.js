@@ -21,7 +21,7 @@
       status, pid: running ? "749941" : "—", binary: "/home/me/llama.cpp/build/bin/llama-server",
       listen: running ? "127.0.0.1:8090" : "", wslIp: "172.24.16.1",
       model: running ? "Qwen3.8-27B-UD-IQ4_XS.gguf" : "—", context: running ? "25556" : "—",
-      gpuLayers: running ? "all" : "—", vram: running ? "14.9 GB" : "—", cpuRam: running ? "1.2 GB" : "—",
+      gpuLayers: running ? "all" : "—", tokPerSec: running ? "47.5 tok/s" : "—", tokPerSecTip: "Average of 3 request(s), 190 tokens\nmin 30.0 · max 60.0 · last 60.0 tok/s", vram: running ? "14.9 GB" : "—", cpuRam: running ? "1.2 GB" : "—",
       uptime: running ? "01:23:45" : "00:00:00",
     },
     models, selectedModel: 0, alias: models[0].alias,

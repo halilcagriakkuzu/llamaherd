@@ -12,9 +12,13 @@ type Server struct {
 	Model     string `json:"model"`
 	Context   string `json:"context"`
 	GPULayers string `json:"gpuLayers"`
-	VRAM      string `json:"vram"`
-	CPURAM    string `json:"cpuRam"`
-	Uptime    string `json:"uptime"`
+	// TokPerSec is the average generation speed (e.g. "42.3 tok/s"); the tooltip
+	// carries min / max / last. "—" until a request has finished.
+	TokPerSec    string `json:"tokPerSec"`
+	TokPerSecTip string `json:"tokPerSecTip"`
+	VRAM         string `json:"vram"`
+	CPURAM       string `json:"cpuRam"`
+	Uptime       string `json:"uptime"`
 }
 
 // Basic holds the BASIC tab field values (task 04).
