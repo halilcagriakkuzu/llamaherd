@@ -489,7 +489,7 @@ The log streams into the tab and a running `llama-server` is warned about (the
 new binary is used after the next restart). Paths come from `llamaDir` /
 `LLAMAHERD_LLAMA_DIR` and `llamaBuildDir` / `LLAMAHERD_LLAMA_BUILD_DIR`. When running
 the script yourself, override with `LLAMA_DIR`, `BUILD_DIR`, `CUDA_ARCH`
-(default `89` = RTX 40-series; **set it for your GPU**, e.g. `86` for RTX 30),
+(auto-detected from `nvidia-smi`'s compute capability, e.g. `89`; `native` if no GPU is detected),
 `JOBS` and `GIT_PULL_ARGS`. `llamaherd doctor` warns when the build is older
 than the minimum the presets need (override with `LLAMAHERD_MIN_LLAMA_BUILD`).
 

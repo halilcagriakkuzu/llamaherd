@@ -3,16 +3,28 @@
 #
 # Steps (same as the manual routine):
 #   1. git pull
-#   2. cmake -S . -B build-latest -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
+#   2. cmake -S . -B build-latest -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=<detected>
 #   3. cmake --build build-latest --config Release -j$(nproc)
 #
 # The GUI runs this from the "llama.cpp" tab; it can also be run by hand.
-# Override with env vars: LLAMA_DIR, BUILD_DIR, CUDA_ARCH, JOBS, GIT_PULL_ARGS.
+# Override with env vars: LLAMA_DIR, BUILD_DIR, CUDA_ARCH (auto-detected via
+# nvidia-smi when unset), JOBS, GIT_PULL_ARGS.
 set -euo pipefail
 
 LLAMA_DIR="${LLAMA_DIR:-$HOME/llama.cpp}"
 BUILD_DIR="${BUILD_DIR:-build-latest}"
-CUDA_ARCH="${CUDA_ARCH:-89}"   # RTX 4070 Ti SUPER = compute capability 8.9
+# CUDA architecture(s): CUDA_ARCH wins; otherwise detect the installed GPU(s)'
+# compute capability via nvidia-smi (e.g. 8.9 -> 89, several GPUs -> "86;89");
+# fall back to "native" (CMake >= 3.24 picks the visible GPU) when undetectable.
+detect_cuda_arch() {
+    command -v nvidia-smi >/dev/null 2>&1 || return 1
+    local caps
+    caps="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null \
+        | tr -d ' \r' | grep -E '^[0-9]+\.[0-9]+$' | tr -d '.' | sort -un | paste -sd';' -)"
+    [ -n "$caps" ] && printf '%s' "$caps"
+}
+CUDA_ARCH="${CUDA_ARCH:-$(detect_cuda_arch || true)}"
+CUDA_ARCH="${CUDA_ARCH:-native}"
 JOBS="${JOBS:-$(nproc)}"
 # --ff-only: refuse to create a merge commit in the checkout; fail loudly instead.
 GIT_PULL_ARGS="${GIT_PULL_ARGS:---ff-only}"

@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stops the Linux process, and `doctor` checks the binary + warns about slow
   `/mnt/<drive>` model access.
 
+### Changed (llama.cpp updater)
+
+- `update-llamacpp.sh` auto-detects the CUDA architecture from `nvidia-smi`
+  (falls back to `native`) instead of hard-coding `89`; `CUDA_ARCH` still overrides.
+
 ### Quality
 
 - GPU-free unit tests for GGUF parsing, model scan, config/library load/save,
