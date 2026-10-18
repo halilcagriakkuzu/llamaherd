@@ -424,7 +424,6 @@ download_file() {
 download_release() {
   resolve_repo_slug
   local ext="tar.gz"
-  [ "$OS" = "darwin" ] && ext="tar.gz"
   local asset="${APP}_${OS}_${ARCH}.${ext}"
   local url
   if [ "$RELEASE_TAG" = "latest" ]; then

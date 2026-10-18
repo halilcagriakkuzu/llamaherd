@@ -29,6 +29,8 @@ jobs:
     continue-on-error: ${{ matrix.experimental }}
     # Tag builds stamp the version into the binary (llamaherd version).
     env:
+      # Wails' macOS webview needs UTType (UniformTypeIdentifiers).
+      CGO_LDFLAGS: ${{ runner.os == 'macOS' && '-framework UniformTypeIdentifiers' || '' }}
       VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
     strategy:
       fail-fast: false
@@ -44,16 +46,16 @@ jobs:
             tags: webkit2_41,desktop,production
             bin: llamaherd
             experimental: true
-          - os: macos-13
+          - os: macos-15-intel
             asset: llamaherd_darwin_amd64
             tags: desktop,production
             bin: llamaherd
-            experimental: false
+            experimental: true
           - os: macos-14
             asset: llamaherd_darwin_arm64
             tags: desktop,production
             bin: llamaherd
-            experimental: false
+            experimental: true
           - os: windows-latest
             asset: llamaherd_windows_amd64
             tags: desktop,production
@@ -127,7 +129,8 @@ jobs:
   release:
     name: publish release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    # Publish whatever built (best-effort targets may have failed).
+    if: always() && !cancelled() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     steps:
       - name: Download artifacts
