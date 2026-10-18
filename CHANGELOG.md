@@ -80,7 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 
-- Windows and macOS runtime testing of process control (see `BACKLOG.md` §5).
+- Windows and macOS runtime testing of process control (see `BACKLOG.md`).
 
 ## [0.1.0] - 2026-10-18
 
