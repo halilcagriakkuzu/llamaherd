@@ -165,7 +165,7 @@ Key switches: `-Mode wsl|native`, `-Distro`, `-FromRelease`, `-Tag`, `-Repo`,
 
 ### Prebuilt releases
 
-Tag a commit (`git tag v0.1.0 && git push origin v0.1.0`) to run
+Tag a commit (`git tag v0.2.0 && git push origin v0.2.0`) to run
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds
 Linux (amd64/arm64), macOS (amd64/arm64) and Windows (amd64) archives and
 attaches them to the GitHub Release. Asset names are stable so the installer can
