@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"llamaherd/control"
-	"llamaherd/dummy"
 	"llamaherd/hf"
+	"llamaherd/schema"
 	"llamaherd/settings"
 	"llamaherd/store"
 )
@@ -114,7 +114,7 @@ func (a *App) installDownloaded(repo, file, modelPath, mmPath, draftPath string)
 
 	if _, err := os.Stat(filepath.Join(settings.ConfigsDir(), id+".json")); err != nil {
 		p := a.buildDownloadPreset(id, modelPath, mmPath, draftPath, meta.MTP)
-		if err := store.SaveAlias(settings.ConfigsDir(), id, []dummy.Preset{p}); err != nil {
+		if err := store.SaveAlias(settings.ConfigsDir(), id, []schema.Preset{p}); err != nil {
 			a.Log("hf: could not write config: " + err.Error())
 		}
 	}
@@ -142,13 +142,13 @@ func repoName(repo string) string {
 // downloaded model (vision sidecar attached when present). An embedded MTP head
 // enables speculative decoding (draft-mtp); a separate draft sidecar is
 // recorded but left off (FastMTP needs a patched llama.cpp).
-func (a *App) buildDownloadPreset(alias, model, mmproj, draft string, embeddedMTP bool) dummy.Preset {
-	p := dummy.Preset{Name: "default", Basic: dummy.Basic{
+func (a *App) buildDownloadPreset(alias, model, mmproj, draft string, embeddedMTP bool) schema.Preset {
+	p := schema.Preset{Name: "default", Basic: schema.Basic{
 		Model: model, Alias: alias, Host: "127.0.0.1", Port: 8090,
 		Context: 51200, GPULayers: "all", ParallelSlots: 1,
 		FlashAttention: "on", KCache: "q8_0", VCache: "q8_0",
 		Jinja: true, ReasoningFmt: "deepseek",
-	}, Advanced: dummy.Advanced{Fit: "off", SleepIdle: 300}}
+	}, Advanced: schema.Advanced{Fit: "off", SleepIdle: 300}}
 	if mmproj != "" {
 		p.Advanced.MMProj = mmproj
 		p.Advanced.NoMMProjOffload = true

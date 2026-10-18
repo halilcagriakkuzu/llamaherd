@@ -11,7 +11,7 @@
 /frontend/wailsjs/
 
 # Runtime data: scanned models, per-alias presets, per-model metadata.
-# Regenerated from the built-in tables in dummy/data.go.
+# Seeded automatically from scanned models (synthesized default presets).
 /models/
 /configs/
 /library/

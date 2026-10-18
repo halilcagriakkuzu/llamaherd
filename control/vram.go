@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/store"
 )
 
@@ -73,7 +73,7 @@ type VramEstimate struct {
 // EstimateVram predicts the GPU footprint of cfg. path resolution and GGUF
 // parsing are best-effort: if metadata cannot be read, only the weight cost
 // (file size × GPU fraction) is reported and the result is conservative.
-func EstimateVram(cfg dummy.Config) VramEstimate {
+func EstimateVram(cfg schema.Config) VramEstimate {
 	var e VramEstimate
 
 	gpuFrac, layerNote := gpuLayerFraction(cfg)
@@ -188,7 +188,7 @@ func EstimateVram(cfg dummy.Config) VramEstimate {
 
 // gpuLayerFraction maps the -ngl field ("all", a number, empty) to the share
 // of weights expected on the GPU, plus a short note for the detail line.
-func gpuLayerFraction(cfg dummy.Config) (float64, string) {
+func gpuLayerFraction(cfg schema.Config) (float64, string) {
 	gl := strings.TrimSpace(strings.ToLower(cfg.Basic.GPULayers))
 	if gl == "" || gl == "all" || gl == "auto" {
 		return 1.0, "all layers on GPU"
@@ -215,7 +215,7 @@ func gpuLayerFraction(cfg dummy.Config) (float64, string) {
 // stays within the budget, or -1 when it cannot be determined (no GPU, or the
 // model metadata is unreadable). A value equal to the model's layer count
 // means "everything fits on the GPU".
-func SafeGpuLayers(cfg dummy.Config) int {
+func SafeGpuLayers(cfg schema.Config) int {
 	if TotalVramMB() <= 0 {
 		return -1
 	}

@@ -8,13 +8,13 @@ import (
 )
 
 // TestAllPresetsFitBudget is the end-to-end guard check: it builds the real
-// preset table (built-in presets + configs/<alias>.json on disk + synthesized
+// preset table (synthesized defaults + configs/<alias>.json on disk + synthesized
 // defaultPreset for scanned models) and fails if any preset's predicted GPU
 // footprint exceeds the VRAM budget. This is what keeps the shipped presets
 // under the 90% rule.
 //
 // It needs a visible GPU (TotalVramMB) and the model files on disk, so it skips
-// on CI. The GPU-free structural checks live in TestPresetConsistency (see
+// on CI. The GPU-free structural checks live in TestSynthesizedPresetsConsistent (see
 // configs_consistency_test.go).
 func TestAllPresetsFitBudget(t *testing.T) {
 	a := NewApp()

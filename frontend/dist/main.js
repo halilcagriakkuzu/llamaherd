@@ -52,8 +52,7 @@
     tabAdvanced: $("tabAdvanced"),
     cmdline: $("cmdline"),
     logView: $("logView"),
-    browseBtn: $("browseBtn"),
-    warnBanner: $("warnBanner"),
+      warnBanner: $("warnBanner"),
     vramEstimate: $("vramEstimate"),
     doctorBanner: $("doctorBanner"),
     doctorList: $("doctorList"),
@@ -737,7 +736,6 @@
     el.loadBtn.addEventListener("click", () => call("LoadConfig"));
     el.startBtn.addEventListener("click", () => call("StartServer"));
     el.stopBtn.addEventListener("click", () => call("StopServer"));
-    el.browseBtn.addEventListener("click", () => call("Log", "browse: dummy"));
     el.frSave.addEventListener("click", () => {
       const a = app();
       if (!a) return;

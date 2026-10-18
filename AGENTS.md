@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Go + Qt5 desktop GUI project. Minimal foundation only — no business logic.
+Go + Wails desktop GUI project (llama.cpp control panel).
 Git repo: `git@github.com:halilcagriakkuzu/llamaherd.git` (branch `main`).
 
 ## Project
@@ -58,14 +58,8 @@ Git repo: `git@github.com:halilcagriakkuzu/llamaherd.git` (branch `main`).
   `build/windows/icon.ico`.
 - Backend contract (app.go): `GetState`, `SelectModel`, `SelectPreset`,
   `UpdateConfig`, `SaveConfig`, `LoadConfig`, `StartServer`, `StopServer`,
-  `CrashDemo`, `Log`; events: `state` (full snapshot), `log` (one line).
-- Dummy rules unchanged (tasks/README.md): no `net/http`, no `os/exec`; the
-  assembled command line is a string only, never executed.
-
-## llama.cpp reference (phase 2 — real control)
-
-Task design lives in `tasks/` (README + numbered task files). Phase 1 is a
-dummy, design-only GUI: no `net/http`, no `os/exec`, no real file I/O.
+  `Log`; events: `state` (full snapshot), `log` (one line).
+## llama.cpp reference
 
 ### VRAM pre-flight guard (added 2026-10-16)
 
@@ -77,8 +71,7 @@ counts and honours hybrid attention (`full_attention_interval`: qwen35 keeps a
 KV cache on only 16/65 layers). Blocked starts log a reason and set
 `Snapshot.Warning` (UI banner); `Open` (CLI/API) returns that error too.
 Tune the threshold in `control/vram.go`; estimate vs. reality is approximate.
-The shipped presets (`dummy/data.go` + `configs/*.json`) and the synthesized
-`defaultPreset` are tuned to stay under the budget (e.g. UD-IQ4_XS uses
+Presets (`configs/*.json` and the synthesized `defaultPreset`) are tuned to stay under the budget (e.g. UD-IQ4_XS uses
 `-ngl 60`, vision+mtp `-ngl 51`); `TestAllPresetsFitBudget` enforces this.
 The Q3/IQ4/UD-Q3 models also carry a `high-ctx` preset: full GPU offload
 (`-ngl all`) with the largest context that still fits (q4_0 KV), e.g. Q3_K_S
@@ -86,7 +79,7 @@ The Q3/IQ4/UD-Q3 models also carry a `high-ctx` preset: full GPU offload
 
 - Server binary: `/home/halilcagriakkuzu/llama.cpp/build-latest/bin/llama-server`
 - Models dir (scan recursively for `*.gguf`; `mmproj*.gguf` are vision sidecars, not loadable models): `/home/halilcagriakkuzu/llm/models/`
-- Real status/control in phase 2:
+- Real status/control:
   - HTTP on `127.0.0.1:8080`: `/health`, `/props`, `/v1/models`, `/metrics`
   - Launch/kill the process; per-alias configs become real `configs/<alias>.json` file I/O
 - User's real reference commands (flag superset the form must cover):
@@ -117,14 +110,14 @@ llama-server --model /home/halilcagriakkuzu/llm/models/Qwen3.8_Uncensored/Hereti
 ## Files
 
 - `main.go` — Wails window entry
-- `app.go` — Wails-bound App (snapshot state machine, dummy actions)
+- `app.go` — Wails-bound App (snapshot state machine)
 - `hf/` — Hugging Face catalog + resumable, sha256-verified downloader
 - OS-specific code is platform-split (build-tagged): `control/proc_{linux,darwin,unix,windows,other_unix}.go`
   (process listing/RSS/total RAM/kill/detach), `doctor/disk_{unix,other,windows}.go`,
   `daemon_attr_{unix,windows}.go`, and `settings/platform.go` (`IsWSL`, `LocalIPv4`).
   The whole module must keep cross-compiling: verify with
   `CGO_ENABLED=0 GOOS=windows go build ./...` and `GOOS=darwin go build ./...`.
-- `dummy/data.go` — all dummy values + shared `Config` struct
+- `schema/schema.go` — shared data types (`Config`, `Preset`, `Model`, `Server`)
 - `frontend/dist/` — vanilla frontend (index.html, main.js, styles.css)
 - `go.mod` / `go.sum` — module `llamaherd` + Wails v2 dependencies
 - `opencode.json` — opencode project config (fish shell + searxng MCP only). The
@@ -132,4 +125,3 @@ llama-server --model /home/halilcagriakkuzu/llm/models/Qwen3.8_Uncensored/Hereti
   `~/.config/opencode/plugins/llamacpp-discover.ts` discovers the model loaded in
   llama-server (127.0.0.1:8090) and registers it in every folder; run
   `/llama-refresh` in opencode after starting or switching a model.
-- `tasks/` — design task specs (placeholder window except; Qt references read as HTML equivalents)

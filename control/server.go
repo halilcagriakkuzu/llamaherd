@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"llamaherd/dummy"
+	"llamaherd/schema"
 )
 
 // Status mirrors the README state machine.
@@ -135,7 +135,7 @@ func (m *Manager) AttachExternal(host string, port int) {
 func (m *Manager) setStatusLocked(s Status) { m.status = s }
 
 // Start launches llama-server with the given config.
-func (m *Manager) Start(cfg dummy.Config) error {
+func (m *Manager) Start(cfg schema.Config) error {
 	m.mu.Lock()
 	if m.status != StatusStopped && m.status != StatusCrashed {
 		m.mu.Unlock()
@@ -379,7 +379,7 @@ func exitCode(err error) int {
 // order used by the user's reference commands. Shares the assembly rules
 // documented in task 07 (skip empty; skip spec-* unless a draft type; booleans
 // only when checked; 0 = skip for numerics).
-func BuildArgs(cfg dummy.Config) []string {
+func BuildArgs(cfg schema.Config) []string {
 	b, adv := cfg.Basic, cfg.Advanced
 	var args []string
 	add := func(flag, val string) {

@@ -9,7 +9,7 @@ import (
 	"log"
 	"net/http"
 
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/settings"
 )
 
@@ -22,16 +22,16 @@ type Control interface {
 	StartDownload(ref, file, visionFile string) error
 	CancelDownload() error
 	SetHFToken(token string) error
-	Models() []dummy.Model
-	Presets(alias string) []dummy.Preset
+	Models() []schema.Model
+	Presets(alias string) []schema.Preset
 	SelectModelByAlias(alias string) error
 	SelectPreset(name string)
 	Open(alias, preset string) error
 	Stop() error
 	SaveConfig()
 	LoadConfig()
-	AddPreset(alias, name string, cfg dummy.Config) error
-	UpdatePreset(alias, name string, cfg dummy.Config) error
+	AddPreset(alias, name string, cfg schema.Config) error
+	UpdatePreset(alias, name string, cfg schema.Config) error
 	RemovePreset(alias, name string) error
 }
 
@@ -222,9 +222,9 @@ func withAuth(next http.Handler) http.Handler {
 // preset wholesale; a nil config copies the preset currently applied.
 func mergePreset(w http.ResponseWriter, r *http.Request, c Control, update bool) {
 	var req struct {
-		Alias  string        `json:"alias"`
-		Name   string        `json:"name"`
-		Config *dummy.Config `json:"config"`
+		Alias  string         `json:"alias"`
+		Name   string         `json:"name"`
+		Config *schema.Config `json:"config"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -246,9 +246,9 @@ func mergePreset(w http.ResponseWriter, r *http.Request, c Control, update bool)
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-func deref(p *dummy.Config) dummy.Config {
+func deref(p *schema.Config) schema.Config {
 	if p == nil {
-		return dummy.Config{}
+		return schema.Config{}
 	}
 	return *p
 }

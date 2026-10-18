@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/settings"
 )
 
@@ -65,7 +65,7 @@ func SaveMeta(dir string, m Meta) error {
 // ApplyLibrary merges meta files into the scanned models. A model without a
 // meta file gets a stub written (Category empty) so it shows up as
 // Uncategorized and can be placed later. Returns how many stubs were created.
-func ApplyLibrary(dir string, models []dummy.Model) (created int) {
+func ApplyLibrary(dir string, models []schema.Model) (created int) {
 	for i := range models {
 		m := &models[i]
 		id := DerivedAlias(m.Path)

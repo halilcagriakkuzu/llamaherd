@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/settings"
 	"llamaherd/store"
 )
@@ -57,7 +57,7 @@ func TestEstimateMatrix(t *testing.T) {
 			continue
 		}
 		for _, s := range scenarios {
-			cfg := dummy.Config{Basic: dummy.Basic{
+			cfg := schema.Config{Basic: schema.Basic{
 				Model: mp, Context: s.ctx, GPULayers: s.ngl, KCache: s.k, VCache: s.v,
 			}}
 			e := EstimateVram(cfg)

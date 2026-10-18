@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"llamaherd/dummy"
 	"llamaherd/settings"
 )
 
@@ -17,25 +16,13 @@ func TestScanModels(t *testing.T) {
 	if len(models) == 0 {
 		t.Skipf("no *.gguf found under %s", dir)
 	}
-	known := 0
 	mmproj := 0
 	for _, m := range models {
 		if m.IsMMProj {
 			mmproj++
-			continue
-		}
-		for _, p := range dummy.Presets {
-			for _, pr := range p {
-				if settings.ResolveModelPath(pr.Basic.Model) == m.Path {
-					known++
-				}
-			}
 		}
 	}
-	t.Logf("scanned %d entries (%d loadable matching built-in presets, %d mmproj)", len(models), known, mmproj)
-	if known == 0 {
-		t.Errorf("no scanned model matches the built-in preset paths")
-	}
+	t.Logf("scanned %d entries (%d mmproj)", len(models), mmproj)
 }
 
 func TestDerivedAlias(t *testing.T) {

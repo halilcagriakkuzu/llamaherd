@@ -32,15 +32,14 @@ LlamaHerd is one Go binary with two entry modes that share a single controller.
   thin HTTP client; if nothing is listening it spawns a headless daemon
   (`llamaherd daemon`), which runs the same core without a window.
 - **Real I/O lives below the UI.** `net/http` and `os/exec` appear only in
-  `control/`, `api/`, `hf/`, `doctor/` and `settings/` — never in the dummy/UI
-  layer.
+  `control/`, `api/`, `hf/`, `doctor/` and `settings/` — never in the UI layer.
 
 ## Package map
 
 | Package | Responsibility |
 | --- | --- |
 | `main` (`app*.go`, `cli.go`) | Wails bindings, snapshot state machine, CLI/daemon |
-| `dummy/` | Shared `Config` struct + built-in sample data |
+| `schema/` | Shared data types (`Config`, `Preset`, `Model`, `Server`) |
 | `settings/` | Path/env/config resolution, WSL detection, HF token |
 | `store/` | GGUF header parse, recursive model scan, configs/library persistence |
 | `control/` | `llama-server` lifecycle, metrics, VRAM pre-flight guard |
@@ -48,13 +47,12 @@ LlamaHerd is one Go binary with two entry modes that share a single controller.
 | `hf/` | Hugging Face Hub client, catalog, resumable verified downloads |
 | `api/` | Loopback control API (optional bearer token) |
 | `frontend/dist/` | Vanilla HTML/JS/CSS UI (no framework, no build step) |
-| `tasks/` | Original design task specs |
 
 ## Adding a preset / model
 
 - **Preset**: add an entry to a `configs/<alias>.json` (`AliasFile` in
-  `store/scan.go`) or the built-in table in `dummy/data.go`; presets are full
-  basic+advanced field sets (`dummy.Config`).
+  `store/scan.go`) ; presets are full basic+advanced field sets
+  (`schema.Config`). Models without a file get a synthesized default preset.
 - **Model**: drop the `*.gguf` under the models directory and rescan; a
   `library/<id>.json` meta (`store.Meta`) records its category, mmproj and MTP
   sidecars. See the README's Configuration section.

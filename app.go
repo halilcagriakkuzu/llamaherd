@@ -15,7 +15,7 @@ import (
 	"llamaherd/api"
 	"llamaherd/control"
 	"llamaherd/doctor"
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/settings"
 	"llamaherd/store"
 )
@@ -23,19 +23,19 @@ import (
 // Snapshot is the complete UI state. It is sent to the frontend on every
 // change (event "state") and on GetState().
 type Snapshot struct {
-	Status         string        `json:"status"` // starting | stopping | running | stopped | crashed
-	CrashExit      int           `json:"crashExit"`
-	Server         dummy.Server  `json:"server"`
-	Models         []dummy.Model `json:"models"`
-	SelectedModel  int           `json:"selectedModel"`
-	Alias          string        `json:"alias"`
-	PresetNames    []string      `json:"presetNames"`
-	SelectedPreset int           `json:"selectedPreset"`
-	Config         dummy.Config  `json:"config"`
-	ConfigPath     string        `json:"configPath"`
-	Dirty          bool          `json:"dirty"`
-	CommandLine    string        `json:"commandLine"`
-	BootLines      []string      `json:"bootLines"`
+	Status         string         `json:"status"` // starting | stopping | running | stopped | crashed
+	CrashExit      int            `json:"crashExit"`
+	Server         schema.Server  `json:"server"`
+	Models         []schema.Model `json:"models"`
+	SelectedModel  int            `json:"selectedModel"`
+	Alias          string         `json:"alias"`
+	PresetNames    []string       `json:"presetNames"`
+	SelectedPreset int            `json:"selectedPreset"`
+	Config         schema.Config  `json:"config"`
+	ConfigPath     string         `json:"configPath"`
+	Dirty          bool           `json:"dirty"`
+	CommandLine    string         `json:"commandLine"`
+	BootLines      []string       `json:"bootLines"`
 	// Warning is a blocking pre-flight message (currently: the VRAM guard).
 	// Non-empty => the last Start was refused; the UI shows it as a banner.
 	Warning string `json:"warning"`
@@ -66,11 +66,11 @@ type App struct {
 	bin       string // resolved llama-server binary (env / config / discovery)
 	modelsDir string // resolved models directory (env / config / default)
 	firstRun  bool   // true => show the setup prompt
-	models    []dummy.Model
+	models    []schema.Model
 	selModel  int
 	selPreset int
-	presets   map[string][]dummy.Preset
-	cfg       dummy.Config
+	presets   map[string][]schema.Preset
+	cfg       schema.Config
 	dirty     bool
 	bootLines []string
 	eventCh   chan eventMsg
@@ -85,7 +85,7 @@ type App struct {
 	// runCfg is the config the CURRENTLY loaded/running server was launched
 	// with. The Status panel reports this, not the (possibly different)
 	// model/preset the user has selected in the form. nil = nothing loaded.
-	runCfg *dummy.Config
+	runCfg *schema.Config
 }
 
 // eventMsg serializes every frontend emission through the pump goroutine —
@@ -106,7 +106,7 @@ func NewApp() *App {
 		modelsDir: modelsDir,
 		firstRun:  computeFirstRun(bin, modelsDir),
 		mgr:       control.NewManager(bin),
-		presets:   map[string][]dummy.Preset{},
+		presets:   map[string][]schema.Preset{},
 		eventCh:   make(chan eventMsg, 1024),
 	}
 }
@@ -172,9 +172,12 @@ func (a *App) reloadSettings() {
 
 	a.initModels()
 	a.initPresets()
-	a.selModel = a.indexOfModelPath(settings.ResolveModelPath(dummy.Models[0].Path))
-	if a.selModel < 0 && len(a.models) > 0 {
-		a.selModel = 0
+	a.selModel = -1
+	for i, m := range a.models {
+		if !m.IsMMProj {
+			a.selModel = i
+			break
+		}
 	}
 	if p := a.presetList(a.alias()); len(p) > 0 {
 		a.cfg = p[0].AsConfig()
@@ -198,15 +201,7 @@ func (a *App) startup(ctx context.Context) {
 
 	// Select the first loadable model (prefer the flagship), apply its first
 	// preset, then check whether a server is ALREADY listening (external).
-	a.selModel = a.indexOfModelPath(settings.ResolveModelPath(dummy.Models[0].Path))
-	if a.selModel < 0 {
-		for i, m := range a.models {
-			if !m.IsMMProj && m.Alias == "qwen3.8-27b-local" {
-				a.selModel = i
-				break
-			}
-		}
-	}
+	a.selModel = -1
 	if a.selModel < 0 {
 		for i, m := range a.models {
 			if !m.IsMMProj {
@@ -256,8 +251,7 @@ func (a *App) initBackend() {
 	}
 }
 
-// initModels replaces the hardcoded dummy list with a real scan of the models
-// directory; falls back to the dummy list only if the scan finds nothing.
+// initModels scans the models directory for *.gguf files.
 func (a *App) initModels() {
 	modelsDir := a.modelsDir
 	if modelsDir == "" {
@@ -271,19 +265,11 @@ func (a *App) initModels() {
 	}
 	a.bootLines = append(a.bootLines,
 		fmt.Sprintf("models: scanned %d *.gguf under %s", len(a.models), modelsDir))
-	if len(a.models) == 0 {
-		a.models = resolvedModels()
-		a.bootLines = append(a.bootLines, "WARNING: scan empty — using built-in dummy list")
-	}
 }
 
-// initPresets seeds the per-alias preset table from the built-in presets,
-// then overrides/extends from disk (configs/<alias>.json), then synthesizes
-// a default preset for any scanned model without any.
+// initPresets synthesizes a default preset for every scanned model, then
+// overrides it from disk (configs/<alias>.json) when present.
 func (a *App) initPresets() {
-	for alias, ps := range dummy.Presets {
-		a.presets[alias] = store.ResolvePresetPaths(ps)
-	}
 	for i := range a.models {
 		if a.models[i].IsMMProj {
 			continue
@@ -296,7 +282,7 @@ func (a *App) initPresets() {
 			continue
 		}
 		if _, ok := a.presets[m.Alias]; !ok {
-			a.presets[m.Alias] = []dummy.Preset{defaultPreset(m.Alias, m.Path)}
+			a.presets[m.Alias] = []schema.Preset{defaultPreset(m.Alias, m.Path)}
 			// New library model: persist its hardware-fitted default so it is
 			// an editable configs/<alias>.json from the start.
 			if _, err := os.Stat(filepath.Join(settings.ConfigsDir(), m.Alias+".json")); err != nil {
@@ -314,16 +300,8 @@ func (a *App) initPresets() {
 	}
 }
 
-// aliasForPath returns the built-in preset alias whose model path matches,
-// otherwise a file-name-derived alias.
+// aliasForPath returns the file-name-derived alias for a model path.
 func (a *App) aliasForPath(path string) string {
-	for alias, ps := range dummy.Presets {
-		for _, p := range ps {
-			if settings.ResolveModelPath(p.Basic.Model) == path {
-				return alias
-			}
-		}
-	}
 	return store.DerivedAlias(path)
 }
 
@@ -336,22 +314,10 @@ func (a *App) indexOfModelPath(path string) int {
 	return -1
 }
 
-// resolvedModels returns the built-in sample model list with its (relative)
-// paths resolved against the configured models directory.
-func resolvedModels() []dummy.Model {
-	out := make([]dummy.Model, len(dummy.Models))
-	copy(out, dummy.Models)
-	for i := range out {
-		out[i].Path = settings.ResolveModelPath(out[i].Path)
-		out[i].MMProj = settings.ResolveModelPath(out[i].MMProj)
-	}
-	return out
-}
-
-func defaultPreset(alias, modelPath string) dummy.Preset {
-	p := dummy.Preset{
+func defaultPreset(alias, modelPath string) schema.Preset {
+	p := schema.Preset{
 		Name: "default",
-		Basic: dummy.Basic{
+		Basic: schema.Basic{
 			Model:          modelPath,
 			Alias:          alias,
 			Host:           "127.0.0.1",
@@ -365,7 +331,7 @@ func defaultPreset(alias, modelPath string) dummy.Preset {
 			Jinja:          true,
 			ReasoningFmt:   "deepseek",
 		},
-		Advanced: dummy.Advanced{Fit: "off", SleepIdle: 300},
+		Advanced: schema.Advanced{Fit: "off", SleepIdle: 300},
 	}
 	// Keep the synthesized preset inside the GPU budget: if "all" does not fit,
 	// use the largest -ngl that does (otherwise the VRAM guard refuses to
@@ -416,7 +382,7 @@ func (a *App) SelectPreset(name string) {
 
 // UpdateConfig stores the (already collected) form values in the shared
 // Config. Saves/loads/preset switches clear the dirty flag; plain edits set it.
-func (a *App) UpdateConfig(cfg dummy.Config) {
+func (a *App) UpdateConfig(cfg schema.Config) {
 	a.cfg = cfg
 	a.dirty = true
 	a.warn = "" // config changed: any earlier block no longer applies
@@ -431,7 +397,7 @@ func (a *App) SaveConfig() {
 	name := names[a.selPreset]
 
 	list := a.presets[alias]
-	kept := make([]dummy.Preset, 0, len(list)+1)
+	kept := make([]schema.Preset, 0, len(list)+1)
 	replaced := false
 	for _, p := range list {
 		if p.Name == name {
@@ -529,7 +495,7 @@ func (a *App) alias() string {
 	return a.models[a.selModel].Alias
 }
 
-func (a *App) presetList(alias string) []dummy.Preset {
+func (a *App) presetList(alias string) []schema.Preset {
 	return a.presets[alias]
 }
 
@@ -541,7 +507,7 @@ func (a *App) presetNames() []string {
 	return names
 }
 
-func (a *App) findPreset(alias, name string) *dummy.Preset {
+func (a *App) findPreset(alias, name string) *schema.Preset {
 	list := a.presetList(alias)
 	for i := range list {
 		if list[i].Name == name {
@@ -581,7 +547,7 @@ func (a *App) snapshot() Snapshot {
 	case control.StatusStopped, control.StatusCrashed:
 		a.runCfg = nil // nothing is loaded anymore
 	}
-	srv := dummy.ServerState // only defaults for the static rows
+	srv := schema.Server{PID: "—", Uptime: "00:00:00", VRAM: "—", CPURAM: "—"}
 	srv.Status = string(info.Status)
 	srv.Listen = info.Listen
 	srv.Binary = a.bin
@@ -727,15 +693,7 @@ func (a *App) startupHeadless() {
 	a.initBackend()
 	a.initModels()
 	a.initPresets()
-	a.selModel = a.indexOfModelPath(settings.ResolveModelPath(dummy.Models[0].Path))
-	if a.selModel < 0 {
-		for i, m := range a.models {
-			if !m.IsMMProj && m.Alias == "qwen3.8-27b-local" {
-				a.selModel = i
-				break
-			}
-		}
-	}
+	a.selModel = -1
 	if a.selModel < 0 {
 		for i, m := range a.models {
 			if !m.IsMMProj {

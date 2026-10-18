@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/settings"
 )
 
@@ -22,10 +22,10 @@ import (
 
 // AliasFile is the on-disk shape of configs/<alias>.json: the alias plus its
 // named presets, each preset = full basic+advanced field set (the same shape
-// the dummy phase used in memory).
+// the in-memory form).
 type AliasFile struct {
-	Alias   string         `json:"alias"`
-	Presets []dummy.Preset `json:"presets"`
+	Alias   string          `json:"alias"`
+	Presets []schema.Preset `json:"presets"`
 }
 
 func aliasPath(dir, alias string) string {
@@ -58,8 +58,8 @@ func LoadAlias(dir string, alias string) (AliasFile, error) {
 
 // ResolvePresetPaths returns a copy of ps with model / mmproj paths resolved to
 // absolute paths (shipped configs store them relative to the models directory).
-func ResolvePresetPaths(ps []dummy.Preset) []dummy.Preset {
-	out := make([]dummy.Preset, len(ps))
+func ResolvePresetPaths(ps []schema.Preset) []schema.Preset {
+	out := make([]schema.Preset, len(ps))
 	copy(out, ps)
 	for i := range out {
 		out[i].Basic.Model = settings.ResolveModelPath(out[i].Basic.Model)
@@ -72,8 +72,8 @@ func ResolvePresetPaths(ps []dummy.Preset) []dummy.Preset {
 // portablePresetPaths returns a copy of ps with model / mmproj paths made
 // relative to the models directory when possible, so saved configs stay
 // machine-independent.
-func portablePresetPaths(ps []dummy.Preset) []dummy.Preset {
-	out := make([]dummy.Preset, len(ps))
+func portablePresetPaths(ps []schema.Preset) []schema.Preset {
+	out := make([]schema.Preset, len(ps))
 	copy(out, ps)
 	for i := range out {
 		out[i].Basic.Model = settings.RelativizeModelPath(out[i].Basic.Model)
@@ -85,7 +85,7 @@ func portablePresetPaths(ps []dummy.Preset) []dummy.Preset {
 
 // SaveAlias writes configs/<alias>.json. os.MkdirAll keeps it working from
 // any cwd relative base; the app passes "configs".
-func SaveAlias(dir string, alias string, presets []dummy.Preset) error {
+func SaveAlias(dir string, alias string, presets []schema.Preset) error {
 	if len(presets) == 0 {
 		return fmt.Errorf("refusing to save empty preset list for %s", alias)
 	}
@@ -102,8 +102,8 @@ func SaveAlias(dir string, alias string, presets []dummy.Preset) error {
 // ScanModels walks root recursively and returns one entry per loadable *.gguf.
 // mmproj*.gguf vision sidecars are NOT listed: each is attached to the loadable
 // models in the same directory (Model.MMProj). Alias is left empty — the caller
-// resolves aliases (it knows the built-in preset table).
-func ScanModels(root string) []dummy.Model {
+// resolves aliases .
+func ScanModels(root string) []schema.Model {
 	var loads []string
 	mmByDir := map[string][]string{}
 
@@ -128,9 +128,9 @@ func ScanModels(root string) []dummy.Model {
 	})
 
 	sort.Strings(loads)
-	models := make([]dummy.Model, 0, len(loads))
+	models := make([]schema.Model, 0, len(loads))
 	for _, l := range loads {
-		m := dummy.Model{Display: display(strings.TrimSuffix(filepath.Base(l), filepath.Ext(l))), Path: l}
+		m := schema.Model{Display: display(strings.TrimSuffix(filepath.Base(l), filepath.Ext(l))), Path: l}
 		if mms := mmByDir[filepath.Dir(l)]; len(mms) > 0 {
 			sort.Strings(mms)
 			m.MMProj = mms[0]

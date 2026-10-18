@@ -35,7 +35,7 @@ import (
 
 	"llamaherd/api"
 	"llamaherd/doctor"
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/settings"
 )
 
@@ -192,7 +192,7 @@ func ctlRequest(args []string) ([]byte, int, error) {
 			return data, status, nil
 		}
 		var mm struct {
-			Models []dummy.Model `json:"models"`
+			Models []schema.Model `json:"models"`
 		}
 		json.Unmarshal(data, &mm)
 		var out []string
@@ -209,7 +209,7 @@ func ctlRequest(args []string) ([]byte, int, error) {
 				pdata = []byte("[]")
 			}
 			var pp struct {
-				Presets []dummy.Preset `json:"presets"`
+				Presets []schema.Preset `json:"presets"`
 			}
 			json.Unmarshal(pdata, &pp)
 			names := []string{}
@@ -245,9 +245,9 @@ func ctlRequest(args []string) ([]byte, int, error) {
 		}
 		action := args[1]
 		var req struct {
-			Alias  string        `json:"alias"`
-			Name   string        `json:"name"`
-			Config *dummy.Config `json:"config"`
+			Alias  string         `json:"alias"`
+			Name   string         `json:"name"`
+			Config *schema.Config `json:"config"`
 		}
 		var sets []string
 		switch action {
@@ -262,13 +262,13 @@ func ctlRequest(args []string) ([]byte, int, error) {
 			fs.Var(&setList{&sets}, "set", "--set part.field=value (repeatable)")
 			fs.Parse(args[4:])
 			// Fetch the current preset (or first for add) as the base.
-			base := dummy.Config{}
+			base := schema.Config{}
 			bStatus := 0
 			{
 				pdata, st, err := get("/presets?alias=" + req.Alias)
 				if err == nil && st < 400 {
 					var pp struct {
-						Presets []dummy.Preset `json:"presets"`
+						Presets []schema.Preset `json:"presets"`
 					}
 					json.Unmarshal(pdata, &pp)
 					for _, p := range pp.Presets {
@@ -281,7 +281,7 @@ func ctlRequest(args []string) ([]byte, int, error) {
 				}
 			}
 			_ = bStatus
-			patch := dummy.Config{}
+			patch := schema.Config{}
 			for _, kv := range sets {
 				if err := applySet(&patch, kv); err != nil {
 					return []byte("bad --set " + kv + ": " + err.Error()), 400, nil
@@ -308,11 +308,11 @@ func ctlRequest(args []string) ([]byte, int, error) {
 	return []byte("unknown command " + sub), 400, nil
 }
 
-func needsModel(c dummy.Config) bool { return c.Basic.Model == "" }
+func needsModel(c schema.Config) bool { return c.Basic.Model == "" }
 
 // applySet parses "part.field=value" into a Config patch. Values: bare,
 // quoted, int, or bool.
-func applySet(cfg *dummy.Config, kv string) error {
+func applySet(cfg *schema.Config, kv string) error {
 	eq := strings.Index(kv, "=")
 	if eq <= 0 {
 		return errors.New("expected key=value")

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"llamaherd/control"
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/settings"
 	"llamaherd/store"
 )
@@ -19,15 +19,25 @@ var (
 	validFlashAttn = map[string]bool{"": true, "on": true, "off": true, "auto": true}
 )
 
-// TestBuiltinPresetsConsistent is the GPU-free, model-free guard: it validates
-// the shape and generated command line of every built-in preset, so a broken
-// shipped preset fails CI even on a machine with no GPU (TestAllPresetsFitBudget
-// needs a real GPU + model files and skips without them).
-func TestBuiltinPresetsConsistent(t *testing.T) {
-	if len(dummy.Presets) == 0 {
-		t.Fatal("no built-in presets")
+// samplePresets is a small fixed preset table (synthesized defaults plus an
+// MTP variant) used by the GPU-free tests below.
+func samplePresets() map[string][]schema.Preset {
+	mtp := defaultPreset("sample-mtp", "sample/mtp.gguf")
+	mtp.Name = "mtp"
+	mtp.Advanced.SpecType = "draft-mtp"
+	mtp.Advanced.DraftNMax = 3
+	return map[string][]schema.Preset{
+		"sample-plain": {defaultPreset("sample-plain", "sample/plain.gguf")},
+		"sample-mtp":   {defaultPreset("sample-mtp", "sample/mtp.gguf"), mtp},
 	}
-	for alias, list := range dummy.Presets {
+}
+
+// TestSynthesizedPresetsConsistent is the GPU-free, model-free guard: it
+// validates the shape and generated command line of synthesized presets.
+// (TestAllPresetsFitBudget needs a real GPU + model files and skips without
+// them.)
+func TestSynthesizedPresetsConsistent(t *testing.T) {
+	for alias, list := range samplePresets() {
 		if len(list) == 0 {
 			t.Errorf("%s: no presets", alias)
 		}
@@ -123,7 +133,7 @@ func TestPresetSaveLoadRoundTrip(t *testing.T) {
 	settings.Reload()
 
 	dir := t.TempDir()
-	for alias, ps := range dummy.Presets {
+	for alias, ps := range samplePresets() {
 		if err := store.SaveAlias(dir, alias, ps); err != nil {
 			t.Fatalf("%s: save: %v", alias, err)
 		}
@@ -154,13 +164,13 @@ func TestPresetAbsolutePathsAreMadePortable(t *testing.T) {
 	settings.Reload()
 
 	abs := filepath.Join(md, "sub", "x.gguf")
-	ps := []dummy.Preset{{
+	ps := []schema.Preset{{
 		Name: "p",
-		Basic: dummy.Basic{
+		Basic: schema.Basic{
 			Model: abs, Alias: "portable", Host: "127.0.0.1",
 			Port: 8090, Context: 4096, GPULayers: "all",
 		},
-		Advanced: dummy.Advanced{MMProj: filepath.Join(md, "mmproj.gguf")},
+		Advanced: schema.Advanced{MMProj: filepath.Join(md, "mmproj.gguf")},
 	}}
 	dir := t.TempDir()
 	if err := store.SaveAlias(dir, "portable", ps); err != nil {

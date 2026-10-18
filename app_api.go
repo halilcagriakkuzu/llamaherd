@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"llamaherd/control"
-	"llamaherd/dummy"
+	"llamaherd/schema"
 	"llamaherd/settings"
 	"llamaherd/store"
 )
@@ -21,12 +21,12 @@ func (a *App) SnapshotJSON() ([]byte, error) {
 }
 
 // Models returns the merged model list (api.Control).
-func (a *App) Models() []dummy.Model {
+func (a *App) Models() []schema.Model {
 	return a.models
 }
 
 // Presets returns the named presets of an alias (api.Control).
-func (a *App) Presets(alias string) []dummy.Preset {
+func (a *App) Presets(alias string) []schema.Preset {
 	return a.presetList(alias)
 }
 
@@ -109,7 +109,7 @@ func (a *App) Stop() error {
 
 // AddPreset appends a new named preset for the alias and persists it
 // (configs/<alias>.json). Duplicate names are rejected.
-func (a *App) AddPreset(alias, name string, cfg dummy.Config) error {
+func (a *App) AddPreset(alias, name string, cfg schema.Config) error {
 	if name == "" {
 		return fmt.Errorf("preset name required")
 	}
@@ -141,7 +141,7 @@ func (a *App) AddPreset(alias, name string, cfg dummy.Config) error {
 }
 
 // UpdatePreset replaces the named preset's config and persists it.
-func (a *App) UpdatePreset(alias, name string, cfg dummy.Config) error {
+func (a *App) UpdatePreset(alias, name string, cfg schema.Config) error {
 	list := a.presets[alias]
 	for i := range list {
 		if list[i].Name != name {
@@ -168,7 +168,7 @@ func (a *App) UpdatePreset(alias, name string, cfg dummy.Config) error {
 // RemovePreset deletes the named preset and persists the remainder.
 func (a *App) RemovePreset(alias, name string) error {
 	list := a.presets[alias]
-	kept := make([]dummy.Preset, 0, len(list))
+	kept := make([]schema.Preset, 0, len(list))
 	found := false
 	for _, p := range list {
 		if p.Name == name {
@@ -198,7 +198,7 @@ func (a *App) RemovePreset(alias, name string) error {
 
 // mergeConfig overlays non-zero fields of patch onto base (basic/advanced
 // per-field, so a partial patch keeps the rest).
-func mergeConfig(base, patch dummy.Config) dummy.Config {
+func mergeConfig(base, patch schema.Config) schema.Config {
 	out := base
 	if patch.Basic.Model != "" {
 		out.Basic.Model = patch.Basic.Model
@@ -282,7 +282,7 @@ func mergeConfig(base, patch dummy.Config) dummy.Config {
 	return out
 }
 
-func firstName(list []dummy.Preset) string {
+func firstName(list []schema.Preset) string {
 	if len(list) == 0 {
 		return ""
 	}
