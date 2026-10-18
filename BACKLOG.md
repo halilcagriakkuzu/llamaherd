@@ -2,11 +2,6 @@
 
 Open work only — finished items are removed (see `CHANGELOG.md` for what shipped).
 
-- [ ] **Community files:** add `CONTRIBUTING.md` (build/run/PR flow for human contributors;
-  `AGENTS.md` already covers the technical side), `CODE_OF_CONDUCT.md`, and issue / PR
-  templates under `.github/`.
-- [ ] **GitHub repo page:** replace the placeholder description ("Local LLM Manager") with a
-  real one-liner and add topics (`llama-cpp`, `llm`, `gguf`, `wails`, `golang`, …).
 - [ ] **macOS runtime verification:** the binaries build and cross-compile, but nothing has
   run on a Mac yet — Start/Stop, `ForceStopLlama`, RSS/GPU rows, `doctor`, the GUI,
   `scripts/install.sh` and the `.app` bundle (Gatekeeper / notarization behaviour).
