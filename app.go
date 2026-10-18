@@ -117,7 +117,7 @@ func computeFirstRun(bin, modelsDir string) bool {
 	if settings.ConfigExists() {
 		return false
 	}
-	if _, err := os.Stat(bin); err != nil {
+	if !control.BinaryExists(bin) {
 		return true
 	}
 	if ents, err := os.ReadDir(modelsDir); err != nil || len(ents) == 0 {
@@ -239,7 +239,7 @@ func (a *App) startup(ctx context.Context) {
 
 // initBackend checks the configured binary at boot (existence only logged).
 func (a *App) initBackend() {
-	if _, err := os.Stat(a.bin); err != nil {
+	if !control.BinaryExists(a.bin) {
 		a.bootLines = append(a.bootLines,
 			"WARNING: llama-server binary missing: "+a.bin)
 	} else {

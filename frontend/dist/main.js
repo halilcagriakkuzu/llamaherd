@@ -86,6 +86,7 @@
   let snap = null;
   let bootPrinted = false;
   let uptimeSec = 0;
+  let lastStatus = "";
 
   // ---- bindings ----
 
@@ -306,6 +307,11 @@
     el.statusWord.className = cl[1];
     el.statusWord.textContent =
       status === "crashed" ? `CRASHED exit ${snap.crashExit}` : ST_WORD[status] || status.toUpperCase();
+
+    if (status !== lastStatus && !logsPinned && (status === "starting" || status === "crashed")) {
+      setLogsCollapsed(false, false);
+    }
+    lastStatus = status;
 
     const srv = snap.server || {};
     el.kv.pid.textContent = srv.pid || "—";
@@ -564,6 +570,7 @@
     el.cmdline.textContent = snap.commandLine || "";
     el.cmdline.title = `${snap.commandLine || ""} — preview only, never executed`;
     el.vramEstimate.textContent = snap.vramEstimate || "";
+    renderVramBar(snap.vramEstimate || "");
     if (snap.warning) {
       el.warnBanner.textContent = "⚠ " + snap.warning;
       el.warnBanner.classList.remove("hidden");
@@ -596,18 +603,59 @@
     if (which === "llama") refreshLlama();
   }
 
+  // ---- VRAM bar: parses the "(85%)" part of the estimate text ----
+
+  function renderVramBar(text) {
+    const m = /\((\d+)%\)/.exec(text);
+    const fill = $("vramFill");
+    const pct = m ? Math.min(100, parseInt(m[1], 10)) : 0;
+    fill.style.width = pct + "%";
+    fill.className = pct >= 90 ? "bad" : pct >= 75 ? "warn" : "";
+    $("vramBar").style.visibility = m ? "visible" : "hidden";
+  }
+
+  // ---- theme: auto (system) -> light -> dark ----
+
+  const THEMES = ["auto", "light", "dark"];
+
+  function applyTheme(t) {
+    const root = document.documentElement;
+    if (t === "light" || t === "dark") root.dataset.theme = t;
+    else delete root.dataset.theme;
+    $("themeBtn").title = "Theme: " + t + " (click to change)";
+    try { localStorage.setItem("theme", t); } catch (e) { /* storage unavailable */ }
+  }
+
+  function initTheme() {
+    let t = "auto";
+    try { t = localStorage.getItem("theme") || "auto"; } catch (e) { /* storage unavailable */ }
+    if (!THEMES.includes(t)) t = "auto";
+    applyTheme(t);
+    $("themeBtn").addEventListener("click", () => {
+      const cur = document.documentElement.dataset.theme || "auto";
+      applyTheme(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
+    });
+  }
+
   // ---- logs collapse ----
 
-  function setLogsCollapsed(collapsed) {
+  let logsPinned = false; // true once the user toggled logs themselves
+
+  function setLogsCollapsed(collapsed, persist) {
     el.logsGroup.classList.toggle("collapsed", collapsed);
     el.logsTitle.textContent = (collapsed ? "▸ " : "▾ ") + "Logs";
+    if (persist === false) return;
+    logsPinned = true;
     try { localStorage.setItem("logsCollapsed", collapsed ? "1" : "0"); } catch (e) { /* storage unavailable */ }
   }
 
   function initLogsCollapse() {
-    let saved = false;
-    try { saved = localStorage.getItem("logsCollapsed") === "1"; } catch (e) { /* storage unavailable */ }
-    setLogsCollapsed(saved);
+    // Collapsed by default to give the config form room; it opens by itself when
+    // a server starts or crashes (unless the user has chosen a state before).
+    let saved = null;
+    try { saved = localStorage.getItem("logsCollapsed"); } catch (e) { /* storage unavailable */ }
+    if (saved === null) setLogsCollapsed(true, false);
+    else { logsPinned = true; setLogsCollapsed(saved === "1", false); }
     const toggle = () => setLogsCollapsed(!el.logsGroup.classList.contains("collapsed"));
     el.logsTitle.addEventListener("click", toggle);
     el.logsTitle.addEventListener("keydown", (e) => {
@@ -730,6 +778,7 @@
 
     wireForm();
     initLogsCollapse();
+    initTheme();
 
     el.presetSel.addEventListener("change", () => call("SelectPreset", el.presetSel.value));
     el.saveBtn.addEventListener("click", () => call("SaveConfig"));

@@ -9,10 +9,14 @@ matching CLI and a local control API for AI agents).
 
 **In a hurry? → [`QUICKSTART.md`](QUICKSTART.md).**
 
-<!--
-Add a screenshot or short screencast here, e.g.:
-![LlamaHerd screenshot](docs/screenshot.png)
--->
+<p align="center">
+  <img src="docs/screenshots/main-light.png" alt="LlamaHerd main window (light theme)" width="49%">
+  <img src="docs/screenshots/main-dark.png" alt="LlamaHerd main window (dark theme)" width="49%">
+</p>
+
+The UI follows your system theme (light/dark); the moon button in the header
+cycles auto → light → dark. Screenshots are generated from the real frontend
+with a mocked backend: `scripts/uishot/shoot.sh <outdir> [light|dark]`.
 
 ## What is this?
 

@@ -7,14 +7,33 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<header id="appBar">
+  <div class="brand">
+    <img src="logo.png" alt="" class="brand-logo" width="36" height="36">
+    <div class="brand-text">
+      <span class="brand-name">LlamaHerd</span>
+      <span class="brand-sub">llama.cpp control panel</span>
+    </div>
+  </div>
+  <div id="statusHead">
+    <span id="statusDot" class="dot"></span>
+    <span id="statusWord">—</span>
+  </div>
+  <span class="spacer"></span>
+  <button id="startBtn" class="btn-start" title="Start llama-server">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Start
+  </button>
+  <button id="stopBtn" class="btn-stop" title="Stop llama-server">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5" fill="currentColor"/></svg>Stop
+  </button>
+  <button id="themeBtn" class="icon-btn" title="Theme: auto" aria-label="Toggle theme">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1.5a6.5 6.5 0 1 0 0 13V1.5z" fill="currentColor"/><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+  </button>
+</header>
 <main id="main">
   <aside id="left">
     <section class="group" id="statusGroup">
-      <h2 class="group-title">Status</h2>
-      <div id="statusHead">
-        <span id="statusDot" class="dot"></span>
-        <span id="statusWord">—</span>
-      </div>
+      <h2 class="group-title">Server</h2>
       <div class="kv">
         <span class="kv-l">PID</span><span class="kv-v" id="kv-pid">—</span>
         <span class="kv-l">Listen</span><span class="kv-v" id="kv-listen">—</span>
@@ -29,8 +48,10 @@
     </section>
 
     <section class="group stretch" id="modelsGroup">
-      <h2 class="group-title">Models</h2>
-      <div id="modelsActions"><button id="dlOpen" class="tiny">＋ Download a model</button></div>
+      <div class="group-head">
+        <h2 class="group-title">Models</h2>
+        <div id="modelsActions"><button id="dlOpen" class="tiny soft"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Download</button></div>
+      </div>
       <div id="crumbs" class="crumbs"></div>
       <ul id="modelList"></ul>
     </section>
@@ -39,18 +60,15 @@
   <section id="right">
     <div id="warnBanner" class="hidden" role="alert"></div>
     <div id="doctorBanner" class="hidden" role="status"></div>
-    <div id="actions">
-      <select id="presetSel" title="Preset"></select>
-      <button id="saveBtn">Save cfg</button>
-      <button id="loadBtn">Load cfg</button>
-      <span class="spacer"></span>
-      <button id="startBtn" class="btn-start">Start</button>
-      <button id="stopBtn" class="btn-stop">Stop</button>
-      <span id="configPath">configs/—.json</span>
-    </div>
-
     <section class="group stretch" id="configGroup">
-      <h2 class="group-title">Config</h2>
+      <div class="group-head" id="actions">
+        <h2 class="group-title">Config</h2>
+        <span id="configPath">configs/—.json</span>
+        <span class="spacer"></span>
+        <select id="presetSel" title="Preset"></select>
+        <button id="saveBtn" class="tiny">Save</button>
+        <button id="loadBtn" class="tiny">Load</button>
+      </div>
       <div id="tabs">
         <button id="tabBtnBasic" class="tab active">Basic</button>
         <button id="tabBtnAdvanced" class="tab">Advanced</button>
@@ -59,171 +77,240 @@
 
       <div id="tabPanels" class="stretch">
         <div id="tabBasic" class="form panel active">
-          <label class="fl" for="f-model">Model <span class="flag">--model</span></label>
-          <input id="f-model" data-key="model" data-group="basic" readonly spellcheck="false">
 
-          <label class="fl" for="f-alias">Alias <span class="flag">--alias</span></label>
-          <input id="f-alias" data-key="alias" data-group="basic" spellcheck="false">
-
-          <label class="fl" for="f-host">Host <span class="flag">--host</span></label>
-          <input id="f-host" data-key="host" data-group="basic" spellcheck="false">
-
-          <label class="fl" for="f-port">Port <span class="flag">--port</span></label>
-          <input id="f-port" data-key="port" data-group="basic" type="number" min="1" max="65535">
-
-          <label class="fl" for="f-context">Context <span class="flag">-c</span></label>
-          <input id="f-context" data-key="context" data-group="basic" type="number" min="1" max="1048576">
-
-          <label class="fl" for="f-gpuLayers">GPU layers <span class="flag">-ngl</span></label>
-          <div class="fieldrow">
-            <input id="f-gpuLayers" data-key="gpuLayers" data-group="basic" spellcheck="false">
-            <label class="inline" title="send -ngl all"><input type="checkbox" id="nglAll"> all</label>
+          <div class="field wide">          <label class="fl" for="f-model">Model <span class="flag">--model</span></label>
+            <input id="f-model" data-key="model" data-group="basic" readonly spellcheck="false">
           </div>
 
-          <label class="fl" for="visionChk">Vision <span class="flag">--mmproj</span></label>
-          <div class="fieldrow">
-            <input type="checkbox" id="visionChk">
-            <span id="visionHint" class="hint"></span>
+
+          <div class="field">          <label class="fl" for="f-alias">Alias <span class="flag">--alias</span></label>
+            <input id="f-alias" data-key="alias" data-group="basic" spellcheck="false">
           </div>
 
-          <label class="fl" for="mtpChk">MTP <span class="flag">--spec-type</span></label>
-          <div class="fieldrow">
-            <input type="checkbox" id="mtpChk">
-            <span id="mtpHint" class="hint"></span>
+
+          <div class="field">          <label class="fl" for="f-host">Host <span class="flag">--host</span></label>
+            <input id="f-host" data-key="host" data-group="basic" spellcheck="false">
           </div>
 
-          <label class="fl" for="f-parallelSlots">Parallel slots <span class="flag">-np</span></label>
-          <input id="f-parallelSlots" data-key="parallelSlots" data-group="basic" type="number" min="1" max="64">
 
-          <label class="fl" for="f-flashAttention">Flash attention <span class="flag">-fa</span></label>
-          <select id="f-flashAttention" data-key="flashAttention" data-group="basic">
-            <option value="off">off</option>
-            <option value="on">on</option>
-          </select>
+          <div class="field">          <label class="fl" for="f-port">Port <span class="flag">--port</span></label>
+            <input id="f-port" data-key="port" data-group="basic" type="number" min="1" max="65535">
+          </div>
 
-          <label class="fl" for="f-kCache">K cache type <span class="flag">-ctk</span></label>
-          <select id="f-kCache" data-key="kCache" data-group="basic">
-            <option value="f16">f16</option>
-            <option value="q8_0">q8_0</option>
-            <option value="q4_0">q4_0</option>
-            <option value="q4_1">q4_1</option>
-            <option value="q5_1">q5_1</option>
-          </select>
 
-          <label class="fl" for="f-vCache">V cache type <span class="flag">-ctv</span></label>
-          <select id="f-vCache" data-key="vCache" data-group="basic">
-            <option value="f16">f16</option>
-            <option value="q8_0">q8_0</option>
-            <option value="q4_0">q4_0</option>
-            <option value="q4_1">q4_1</option>
-            <option value="q5_1">q5_1</option>
-          </select>
+          <div class="field">          <label class="fl" for="f-context">Context <span class="flag">-c</span></label>
+            <input id="f-context" data-key="context" data-group="basic" type="number" min="1" max="1048576">
+          </div>
+
+
+          <div class="field">          <label class="fl" for="f-gpuLayers">GPU layers <span class="flag">-ngl</span></label>
+            <div class="fieldrow">
+              <input id="f-gpuLayers" data-key="gpuLayers" data-group="basic" spellcheck="false">
+              <label class="inline" title="send -ngl all"><input type="checkbox" id="nglAll"> all</label>
+            </div>
+          </div>
+
+
+          <div class="field">          <label class="fl" for="visionChk">Vision <span class="flag">--mmproj</span></label>
+            <div class="fieldrow">
+              <input type="checkbox" id="visionChk">
+              <span id="visionHint" class="hint"></span>
+            </div>
+          </div>
+
+
+          <div class="field">          <label class="fl" for="mtpChk">MTP <span class="flag">--spec-type</span></label>
+            <div class="fieldrow">
+              <input type="checkbox" id="mtpChk">
+              <span id="mtpHint" class="hint"></span>
+            </div>
+          </div>
+
+
+          <div class="field">          <label class="fl" for="f-parallelSlots">Parallel slots <span class="flag">-np</span></label>
+            <input id="f-parallelSlots" data-key="parallelSlots" data-group="basic" type="number" min="1" max="64">
+          </div>
+
+
+          <div class="field">          <label class="fl" for="f-flashAttention">Flash attention <span class="flag">-fa</span></label>
+            <select id="f-flashAttention" data-key="flashAttention" data-group="basic">
+              <option value="off">off</option>
+              <option value="on">on</option>
+            </select>
+          </div>
+
+
+          <div class="field">          <label class="fl" for="f-kCache">K cache type <span class="flag">-ctk</span></label>
+            <select id="f-kCache" data-key="kCache" data-group="basic">
+              <option value="f16">f16</option>
+              <option value="q8_0">q8_0</option>
+              <option value="q4_0">q4_0</option>
+              <option value="q4_1">q4_1</option>
+              <option value="q5_1">q5_1</option>
+            </select>
+          </div>
+
+
+          <div class="field">          <label class="fl" for="f-vCache">V cache type <span class="flag">-ctv</span></label>
+            <select id="f-vCache" data-key="vCache" data-group="basic">
+              <option value="f16">f16</option>
+              <option value="q8_0">q8_0</option>
+              <option value="q4_0">q4_0</option>
+              <option value="q4_1">q4_1</option>
+              <option value="q5_1">q5_1</option>
+            </select>
+          </div>
+
         </div>
 
         <div id="tabAdvanced" class="panel">
           <div class="sect">
             <h3 class="sect-title">Chat &amp; reasoning</h3>
             <div class="form">
-              <label class="fl" for="f-jinja">Jinja <span class="flag">--jinja</span></label>
-              <input id="f-jinja" data-key="jinja" data-group="basic" type="checkbox">
 
-              <label class="fl" for="f-reasoningFmt">Reasoning format <span class="flag">--reasoning-format</span></label>
-              <select id="f-reasoningFmt" data-key="reasoningFmt" data-group="basic">
-                <option value="none">none</option>
-                <option value="deepseek">deepseek</option>
-              </select>
+              <div class="field toggle">              <label class="fl" for="f-jinja">Jinja <span class="flag">--jinja</span></label>
+                <input id="f-jinja" data-key="jinja" data-group="basic" type="checkbox">
+              </div>
+
+
+              <div class="field">              <label class="fl" for="f-reasoningFmt">Reasoning format <span class="flag">--reasoning-format</span></label>
+                <select id="f-reasoningFmt" data-key="reasoningFmt" data-group="basic">
+                  <option value="none">none</option>
+                  <option value="deepseek">deepseek</option>
+                </select>
+              </div>
+
             </div>
           </div>
 
           <div class="sect" id="sectSpec">
             <h3 class="sect-title">Speculative decoding (MTP)</h3>
             <div class="form">
-              <label class="fl" for="f-specType">Spec type <span class="flag">--spec-type</span></label>
-              <select id="f-specType" data-key="specType" data-group="advanced">
-                <option value="none">none</option>
-                <option value="draft-mtp">draft-mtp</option>
-                <option value="draft-simple">draft-simple</option>
-              </select>
 
-              <label class="fl spec-lbl" for="f-draftModel">Draft model <span class="flag">--spec-draft-model</span></label>
-              <input id="f-draftModel" data-key="draftModel" data-group="advanced" placeholder="(skip)" spellcheck="false">
+              <div class="field">              <label class="fl" for="f-specType">Spec type <span class="flag">--spec-type</span></label>
+                <select id="f-specType" data-key="specType" data-group="advanced">
+                  <option value="none">none</option>
+                  <option value="draft-mtp">draft-mtp</option>
+                  <option value="draft-simple">draft-simple</option>
+                </select>
+              </div>
 
-              <label class="fl spec-lbl" for="f-draftNMax">Draft n max <span class="flag">--spec-draft-n-max</span></label>
-              <input id="f-draftNMax" data-key="draftNMax" data-group="advanced" type="number" min="0" max="32">
 
-              <label class="fl spec-lbl" for="f-draftNgl">Draft ngl <span class="flag">--spec-draft-ngl</span></label>
-              <input id="f-draftNgl" data-key="draftNgl" data-group="advanced" placeholder="(skip)" spellcheck="false">
+              <div class="field wide spec">              <label class="fl spec-lbl" for="f-draftModel">Draft model <span class="flag">--spec-draft-model</span></label>
+                <input id="f-draftModel" data-key="draftModel" data-group="advanced" placeholder="(skip)" spellcheck="false">
+              </div>
 
-              <label class="fl spec-lbl" for="f-draftTypeK">Draft type K <span class="flag">--spec-draft-type-k</span></label>
-              <select id="f-draftTypeK" data-key="draftTypeK" data-group="advanced">
-                <option value="">auto</option>
-                <option value="f16">f16</option>
-                <option value="q8_0">q8_0</option>
-                <option value="q4_0">q4_0</option>
-                <option value="q4_1">q4_1</option>
-                <option value="q5_1">q5_1</option>
-              </select>
 
-              <label class="fl spec-lbl" for="f-draftTypeV">Draft type V <span class="flag">--spec-draft-type-v</span></label>
-              <select id="f-draftTypeV" data-key="draftTypeV" data-group="advanced">
-                <option value="">auto</option>
-                <option value="f16">f16</option>
-                <option value="q8_0">q8_0</option>
-                <option value="q4_0">q4_0</option>
-                <option value="q4_1">q4_1</option>
-                <option value="q5_1">q5_1</option>
-              </select>
+              <div class="field spec">              <label class="fl spec-lbl" for="f-draftNMax">Draft n max <span class="flag">--spec-draft-n-max</span></label>
+                <input id="f-draftNMax" data-key="draftNMax" data-group="advanced" type="number" min="0" max="32">
+              </div>
+
+
+              <div class="field spec">              <label class="fl spec-lbl" for="f-draftNgl">Draft ngl <span class="flag">--spec-draft-ngl</span></label>
+                <input id="f-draftNgl" data-key="draftNgl" data-group="advanced" placeholder="(skip)" spellcheck="false">
+              </div>
+
+
+              <div class="field spec">              <label class="fl spec-lbl" for="f-draftTypeK">Draft type K <span class="flag">--spec-draft-type-k</span></label>
+                <select id="f-draftTypeK" data-key="draftTypeK" data-group="advanced">
+                  <option value="">auto</option>
+                  <option value="f16">f16</option>
+                  <option value="q8_0">q8_0</option>
+                  <option value="q4_0">q4_0</option>
+                  <option value="q4_1">q4_1</option>
+                  <option value="q5_1">q5_1</option>
+                </select>
+              </div>
+
+
+              <div class="field spec">              <label class="fl spec-lbl" for="f-draftTypeV">Draft type V <span class="flag">--spec-draft-type-v</span></label>
+                <select id="f-draftTypeV" data-key="draftTypeV" data-group="advanced">
+                  <option value="">auto</option>
+                  <option value="f16">f16</option>
+                  <option value="q8_0">q8_0</option>
+                  <option value="q4_0">q4_0</option>
+                  <option value="q4_1">q4_1</option>
+                  <option value="q5_1">q5_1</option>
+                </select>
+              </div>
+
             </div>
           </div>
 
           <div class="sect" id="sectVision">
             <h3 class="sect-title">Vision</h3>
             <div class="form">
-              <label class="fl" for="f-mmproj">mmproj <span class="flag">--mmproj</span></label>
-              <div class="fieldrow">
-                <input id="f-mmproj" data-key="mmproj" data-group="advanced" spellcheck="false">
+
+              <div class="field wide">              <label class="fl" for="f-mmproj">mmproj <span class="flag">--mmproj</span></label>
+                <div class="fieldrow">
+                  <input id="f-mmproj" data-key="mmproj" data-group="advanced" spellcheck="false">
+                </div>
               </div>
 
-              <label class="fl" for="f-noMMProjOffload">No mmproj offload <span class="flag">--no-mmproj-offload</span></label>
-              <input id="f-noMMProjOffload" data-key="noMMProjOffload" data-group="advanced" type="checkbox">
+
+              <div class="field toggle">              <label class="fl" for="f-noMMProjOffload">No mmproj offload <span class="flag">--no-mmproj-offload</span></label>
+                <input id="f-noMMProjOffload" data-key="noMMProjOffload" data-group="advanced" type="checkbox">
+              </div>
+
             </div>
           </div>
 
           <div class="sect">
             <h3 class="sect-title">Runtime</h3>
             <div class="form">
-              <label class="fl" for="f-fit">Fit <span class="flag">--fit</span></label>
-              <select id="f-fit" data-key="fit" data-group="advanced">
-                <option value="off">off</option>
-                <option value="on">on</option>
-              </select>
 
-              <label class="fl" for="f-perf">Perf <span class="flag">--perf</span></label>
-              <input id="f-perf" data-key="perf" data-group="advanced" type="checkbox">
+              <div class="field">              <label class="fl" for="f-fit">Fit <span class="flag">--fit</span></label>
+                <select id="f-fit" data-key="fit" data-group="advanced">
+                  <option value="off">off</option>
+                  <option value="on">on</option>
+                </select>
+              </div>
 
-              <label class="fl" for="f-sleepIdle">Sleep idle (s) <span class="flag">--sleep-idle-seconds</span></label>
-              <input id="f-sleepIdle" data-key="sleepIdle" data-group="advanced" type="number" min="0" max="86400">
 
-              <label class="fl" for="f-cacheRAM">Cache RAM (MB) <span class="flag">--cache-ram</span></label>
-              <input id="f-cacheRAM" data-key="cacheRAM" data-group="advanced" type="number" min="0">
+              <div class="field toggle">              <label class="fl" for="f-perf">Perf <span class="flag">--perf</span></label>
+                <input id="f-perf" data-key="perf" data-group="advanced" type="checkbox">
+              </div>
 
-              <label class="fl" for="f-mlock">mlock <span class="flag">-mlock</span></label>
-              <input id="f-mlock" data-key="mlock" data-group="advanced" type="checkbox">
 
-              <label class="fl" for="f-noMmap">no mmap <span class="flag">-no-mmap</span></label>
-              <input id="f-noMmap" data-key="noMmap" data-group="advanced" type="checkbox">
+              <div class="field">              <label class="fl" for="f-sleepIdle">Sleep idle (s) <span class="flag">--sleep-idle-seconds</span></label>
+                <input id="f-sleepIdle" data-key="sleepIdle" data-group="advanced" type="number" min="0" max="86400">
+              </div>
 
-              <label class="fl" for="f-cpuThreads">CPU threads <span class="flag">-t</span></label>
-              <input id="f-cpuThreads" data-key="cpuThreads" data-group="advanced" type="number" min="0">
 
-              <label class="fl" for="f-ubatch">Micro-batch <span class="flag">-ub</span></label>
-              <input id="f-ubatch" data-key="ubatch" data-group="advanced" type="number" min="0">
+              <div class="field">              <label class="fl" for="f-cacheRAM">Cache RAM (MB) <span class="flag">--cache-ram</span></label>
+                <input id="f-cacheRAM" data-key="cacheRAM" data-group="advanced" type="number" min="0">
+              </div>
 
-              <label class="fl" for="f-batch">Batch <span class="flag">-b</span></label>
-              <input id="f-batch" data-key="batch" data-group="advanced" type="number" min="0">
 
-              <label class="fl" for="f-overrideTensor">Override tensor <span class="flag">-ot</span></label>
-              <input id="f-overrideTensor" data-key="overrideTensor" data-group="advanced" type="text" placeholder='blk\.(4[4-9]|5[0-9]|6[0-4])\.ffn_.*=CPU'>
+              <div class="field toggle">              <label class="fl" for="f-mlock">mlock <span class="flag">-mlock</span></label>
+                <input id="f-mlock" data-key="mlock" data-group="advanced" type="checkbox">
+              </div>
+
+
+              <div class="field toggle">              <label class="fl" for="f-noMmap">no mmap <span class="flag">-no-mmap</span></label>
+                <input id="f-noMmap" data-key="noMmap" data-group="advanced" type="checkbox">
+              </div>
+
+
+              <div class="field">              <label class="fl" for="f-cpuThreads">CPU threads <span class="flag">-t</span></label>
+                <input id="f-cpuThreads" data-key="cpuThreads" data-group="advanced" type="number" min="0">
+              </div>
+
+
+              <div class="field">              <label class="fl" for="f-ubatch">Micro-batch <span class="flag">-ub</span></label>
+                <input id="f-ubatch" data-key="ubatch" data-group="advanced" type="number" min="0">
+              </div>
+
+
+              <div class="field">              <label class="fl" for="f-batch">Batch <span class="flag">-b</span></label>
+                <input id="f-batch" data-key="batch" data-group="advanced" type="number" min="0">
+              </div>
+
+
+              <div class="field wide">              <label class="fl" for="f-overrideTensor">Override tensor <span class="flag">-ot</span></label>
+                <input id="f-overrideTensor" data-key="overrideTensor" data-group="advanced" type="text" placeholder='blk\.(4[4-9]|5[0-9]|6[0-4])\.ffn_.*=CPU'>
+              </div>
+
             </div>
           </div>
         </div>
@@ -251,8 +338,13 @@
         </div>
       </div>
 
-      <div id="cmdline" title="preview only — never executed"></div>
-      <div id="vramEstimate" title="estimated GPU memory usage (before start)"></div>
+      <div id="cmdWrap">
+        <div id="cmdline" title="preview only — never executed"></div>
+        <div id="vramRow">
+          <div id="vramBar" aria-hidden="true"><i id="vramFill"></i></div>
+          <div id="vramEstimate" title="estimated GPU memory usage (before start)"></div>
+        </div>
+      </div>
     </section>
 
     <section class="group" id="logsGroup">

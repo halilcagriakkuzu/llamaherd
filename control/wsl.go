@@ -2,6 +2,8 @@ package control
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 )
@@ -100,3 +102,14 @@ func ToWSLPath(p string) string {
 // IsWindowsDrivePath reports whether p lives on a Windows drive (a path WSL
 // reaches through the slow /mnt/<drive> bridge).
 func IsWindowsDrivePath(p string) bool { return driveRe.MatchString(p) }
+
+// BinaryExists reports whether the llama-server binary can be run: a plain
+// file check, or `test -x` inside the distro for a "wsl:" binary.
+func BinaryExists(bin string) bool {
+	if w, ok := ParseWSLBin(bin); ok {
+		name, args := w.Run("test", "-x", w.Path)
+		return exec.Command(name, args...).Run() == nil
+	}
+	_, err := os.Stat(bin)
+	return err == nil
+}

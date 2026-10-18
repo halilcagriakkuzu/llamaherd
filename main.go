@@ -23,8 +23,10 @@ func main() {
 	app := NewApp()
 	err := wails.Run(&options.App{
 		Title:            "LlamaHerd — llama.cpp control panel",
-		Width:            1100,
-		Height:           720,
+		Width:            1240,
+		Height:           820,
+		MinWidth:         960,
+		MinHeight:        640,
 		DisableResize:    false,
 		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 250, G: 250, B: 252, A: 1},

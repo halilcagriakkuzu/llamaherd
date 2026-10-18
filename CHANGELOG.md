@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **New UI.** Card-based layout with an app bar (logo, live status pill, Start/Stop),
+  light/dark theme (follows the system, header toggle), switch controls, two-column
+  responsive settings grid with `--flag` hints, VRAM usage bar, terminal-style logs
+  (collapsed by default; opens on start/crash), refined modals and dialogs. No
+  features were removed. Default window is now 1240x820 (min 960x640).
+- New orange llama icon.
+
+### Fixed
+
+- A `wsl:` llama-server binary is now checked inside WSL (the GUI wrongly reported
+  it missing and showed the first-run dialog).
+
 ## [0.2.0] - 2026-10-18
 
 ### Added
@@ -50,7 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 
-- Screenshot / screencast in the README.
 - Windows and macOS runtime testing of process control (see `BACKLOG.md` §5).
 
 ## [0.1.0] - 2026-10-18

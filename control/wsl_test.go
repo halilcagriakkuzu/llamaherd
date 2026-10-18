@@ -1,6 +1,8 @@
 package control
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -51,5 +53,18 @@ func TestWSLCommand(t *testing.T) {
 	_, stop := w.StopCommand(8090)
 	if stop[len(stop)-1] != `/opt/llama-server .*--port 8090( |$)` {
 		t.Errorf("stop pattern: %v", stop)
+	}
+}
+
+func TestBinaryExistsPlainFiles(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "llama-server")
+	if BinaryExists(f) {
+		t.Error("missing file reported as existing")
+	}
+	if err := os.WriteFile(f, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !BinaryExists(f) {
+		t.Error("existing file reported as missing")
 	}
 }
