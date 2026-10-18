@@ -1,6 +1,7 @@
 # AGENTS.md
 
-Go + Qt5 desktop GUI project. Minimal foundation only — no Git, no business logic.
+Go + Qt5 desktop GUI project. Minimal foundation only — no business logic.
+Git repo: `git@github.com:halilcagriakkuzu/llamaherd.git` (branch `main`).
 
 ## Project
 

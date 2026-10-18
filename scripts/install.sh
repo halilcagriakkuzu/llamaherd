@@ -52,7 +52,7 @@ ICON_SRC=""
 # Set this to your "OWNER/REPO" so the piped one-liner needs no --repo flag:
 #   curl -fsSL .../install.sh | bash -s -- --from-release
 # (Left empty in the source repo; --repo / LLAMAHERD_REPO still override it.)
-BUILTIN_REPO=""
+BUILTIN_REPO="halilcagriakkuzu/llamaherd"
 
 # ---------------------------------------------------------------------------
 # output helpers

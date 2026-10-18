@@ -77,8 +77,8 @@ LlamaHerd is installed from the terminal. Two paths are supported:
 ### Quick install (one-liner)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<you>/LlamaHerd/main/scripts/install.sh \
-  | bash -s -- --from-release --repo <you>/LlamaHerd
+curl -fsSL https://raw.githubusercontent.com/halilcagriakkuzu/llamaherd/main/scripts/install.sh \
+  | bash -s -- --from-release --repo halilcagriakkuzu/llamaherd
 ```
 
 The one-liner only fetches the **installer script**. The app itself is a
@@ -91,12 +91,12 @@ installs that compiled binary. Notes:
 - `--repo` (or `LLAMAHERD_REPO`, or the `BUILTIN_REPO` variable in the script)
   tells it which repo to download from. `BUILTIN_REPO` lets you drop the flag.
 - Requires that a release exists. To build from source instead:
-  `… | bash -s -- --source-url https://github.com/<you>/LlamaHerd.git`.
+  `… | bash -s -- --source-url https://github.com/halilcagriakkuzu/llamaherd.git`.
 
 ### Linux / macOS / WSL
 
 ```bash
-git clone https://github.com/<you>/LlamaHerd.git
+git clone https://github.com/halilcagriakkuzu/llamaherd.git
 cd LlamaHerd
 scripts/install.sh                 # build from this checkout
 scripts/install.sh --from-release  # …or download a prebuilt binary
@@ -128,7 +128,7 @@ scripts/install.sh --uninstall --purge  # also remove data + config
 ### Windows 11
 
 ```powershell
-git clone https://github.com/<you>/LlamaHerd.git
+git clone https://github.com/halilcagriakkuzu/llamaherd.git
 cd LlamaHerd
 # Default: install inside WSL (the GUI runs on WSLg) + Start Menu/Desktop shortcuts
 powershell -ExecutionPolicy Bypass -File scripts\install.ps1

@@ -7,8 +7,8 @@ The impatient path. Full details are in [`README.md`](README.md).
 **Linux / WSL (prebuilt):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<you>/LlamaHerd/main/scripts/install.sh \
-  | bash -s -- --from-release --repo <you>/LlamaHerd
+curl -fsSL https://raw.githubusercontent.com/halilcagriakkuzu/llamaherd/main/scripts/install.sh \
+  | bash -s -- --from-release --repo halilcagriakkuzu/llamaherd
 ```
 
 **Linux / WSL (from a checkout):**
