@@ -104,7 +104,7 @@ API (`GET /catalog`, `GET|POST /download`, `POST /download/cancel`,
   - [x] Project description and one-line pitch. *(initial done)*
   - [ ] Screenshot/screencast. *(placeholder only — needs a real capture)*
   - [x] Feature list.
-  - [x] Requirements (OS, Go version, GPU, disk). *(initial)*
+  - [x] Requirements — split into "always required (runtime)", "prebuilt binary" (nothing extra), and "building from source" (Go + C toolchain + platform GUI libs); covers OS, Go version, GPU, disk.
   - [x] Installation — Linux (Ubuntu/WSL), Windows 11, macOS.
   - [x] First-run / setup (set paths, download a model).
   - [x] Build-from-source instructions per OS. *(Linux/WSL, Windows, macOS)*

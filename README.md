@@ -28,9 +28,6 @@ tune the settings in a form, and press **Start**. It also:
 - exposes a loopback control API and a same-binary CLI so AI agents (or
   scripts) can drive it programmatically.
 
-The name "LlamaHerd" refers to managing a herd of llama.cpp models/servers.
-It was chosen to avoid conflicts with existing projects.
-
 ## Features
 
 - **Model browser** — recursive scan of your models folder, grouped by
@@ -59,13 +56,39 @@ It was chosen to avoid conflicts with existing projects.
 
 ## Requirements
 
-- **Go** (see `go.mod` for the exact toolchain version).
-- **A C toolchain** (`gcc`, `g++`, `make`) — Wails uses cgo.
-- **Wails v2** CLI (for `wails build`).
-- **Linux GUI build deps** (Ubuntu/WSL): `libgtk-3-dev` and
-  `libwebkit2gtk-4.1-dev`.
+What you need depends on **how you install LlamaHerd** — a prebuilt binary
+needs almost nothing, while building from source needs a Go + C toolchain and
+platform GUI libraries.
+
+### Always required (runtime)
+
 - **`llama-server`** built from llama.cpp, plus at least one GGUF model.
-- **A GPU is recommended** (CUDA/ROCm) but not strictly required.
+- **A supported OS**: Linux (incl. WSL2 + WSLg), Windows 11, or macOS.
+- **Disk space** for the models you want to run (a GGUF model is typically
+  2–40 GB; `doctor` warns below 10 GB free).
+- **A GPU is recommended** (CUDA/ROCm on Linux/Windows, Metal on macOS) but not
+  strictly required — CPU inference works.
+
+### Using a prebuilt binary (recommended)
+
+- **Nothing else to install manually** — no Go toolchain and no C compiler. The
+  release archive is a compiled binary; grab it with
+  `scripts/install.sh --from-release` (Linux/macOS/WSL) or
+  `powershell -File scripts\install.ps1 -FromRelease` (Windows).
+- The GUI uses the system webview, which ships with the OS: WebKit2GTK on
+  Linux (installed by the script if missing), WebView2 on Windows 11 (present
+  by default), and WebKit on macOS.
+
+### Building from source
+
+- **Go** (see `go.mod` for the exact toolchain version).
+- **A C toolchain** (`gcc`, `g++`, `make`; MSYS2/MINGW or MSVC on Windows) —
+  Wails uses cgo.
+- **Wails v2** CLI (for `wails build`).
+- **Platform GUI build dependencies**:
+  - **Linux / WSL** (Ubuntu): `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`.
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`).
+  - **Windows 11**: the WebView2 runtime (present by default) and a C toolchain.
 
 ## Installation
 
