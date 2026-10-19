@@ -19,6 +19,7 @@ llamaherd save | load                      # persist / restore the current prese
 
 llamaherd config add|update <alias> <name> [--set basic.port=8090 --set advanced.fit=on]
 llamaherd config remove <alias> <name>
+llamaherd config rename <alias> <old-name> <new-name>
 
 llamaherd model rename <alias> [--name N] [--alias A]
 llamaherd model move <alias> [<category/path>]      # no path = Uncategorized
@@ -46,6 +47,7 @@ llamaherd version
 | `POST /stop` | — | stop the managed server |
 | `POST /save`, `/load` | — | persist / restore the current preset |
 | `POST /config/add`, `/config/update`, `/config/remove` | `{alias, name, config?}` | edit presets |
+| `POST /config/rename` | `{alias, name, newName}` | rename a preset in place |
 | `POST /model/rename` | `{model, name?, alias?}` | display name / alias (moves `configs/<alias>.json`) |
 | `POST /model/category` | `{model, category: [..]}` | place a model; `[]` = Uncategorized |
 | `POST /category/create`, `/rename`, `/delete` | `{path: [..], name?}` | category folders (delete keeps models) |

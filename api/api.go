@@ -34,6 +34,7 @@ type Control interface {
 	AddPreset(alias, name string, cfg schema.Config) error
 	UpdatePreset(alias, name string, cfg schema.Config) error
 	RemovePreset(alias, name string) error
+	RenamePreset(alias, oldName, newName string) error
 	RenameModel(ref, name, alias string) error
 	SetModelCategory(ref string, category []string) error
 	CreateCategory(path []string) error
@@ -251,6 +252,22 @@ func Handler(c Control) http.Handler {
 			return
 		}
 		if err := c.RemovePreset(req.Alias, req.Name); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("POST /config/rename", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Alias   string `json:"alias"`
+			Name    string `json:"name"`
+			NewName string `json:"newName"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := c.RenamePreset(req.Alias, req.Name, req.NewName); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}

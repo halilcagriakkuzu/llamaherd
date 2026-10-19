@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-19
+
+### Added
+
+- **Preset management from the Config dropdown**: `<new preset…>` saves the current form under
+  a name you choose, and a `⋯` menu renames or deletes the selected preset (or discards unsaved
+  edits). API: `POST /config/rename`; CLI: `config rename <alias> <old> <new>`.
+
+### Fixed
+
+- Deleting a preset no longer risks an out-of-range selection, and removing an earlier preset
+  keeps the applied preset selected.
+
 ## [0.3.0] - 2026-10-18
 
 ### Added

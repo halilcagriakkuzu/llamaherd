@@ -432,6 +432,39 @@ func (a *App) SaveConfig() {
 	a.emitState()
 }
 
+// SavePresetAs saves the current form as a new named preset for the selected
+// model, makes it the applied preset and persists configs/<alias>.json.
+func (a *App) SavePresetAs(name string) error {
+	name = strings.TrimSpace(name)
+	alias := a.alias()
+	if alias == "" {
+		return fmt.Errorf("select a model first")
+	}
+	if name == "" {
+		return fmt.Errorf("preset name required")
+	}
+	if a.findPreset(alias, name) != nil {
+		return fmt.Errorf("preset %q already exists for %s", name, alias)
+	}
+	if a.cfg.Basic.Model == "" {
+		return fmt.Errorf("select a model first")
+	}
+	cfg := a.cfg
+	cfg.Basic.Alias = alias
+	list := append(a.presets[alias], cfg.AsPreset(name))
+	if err := store.SaveAlias(settings.ConfigsDir(), alias, list); err != nil {
+		a.Log(fmt.Sprintf("save FAILED configs/%s.json: %v", alias, err))
+		return err
+	}
+	a.presets[alias] = list
+	a.cfg = cfg
+	a.selPreset = len(list) - 1
+	a.dirty = false
+	a.Log(fmt.Sprintf("saved configs/%s.json [new preset %s]", alias, name))
+	a.emitState()
+	return nil
+}
+
 // LoadConfig reads configs/<alias>.json from disk and replaces the alias's
 // in-memory presets. Missing/malformed file: logged, nothing changed.
 func (a *App) LoadConfig() {

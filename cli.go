@@ -111,6 +111,8 @@ func helpLines() []string {
 		"                       replace an existing preset (same --set syntax)",
 		"  config remove <alias> <name>",
 		"                       delete a preset (a saved file survives if needed)",
+		"  config rename <alias> <old-name> <new-name>",
+		"                       rename a preset in place",
 		"  model rename <alias> [--name N] [--alias A]",
 		"                       change a model's display name and/or alias (moves its configs)",
 		"  model move <alias> [<a/b/c>]",
@@ -144,7 +146,7 @@ func subcommandUsage(sub string) string {
 		"daemon":   "usage: llamaherd daemon            # headless: serve only the control API",
 		"doctor":   "usage: llamaherd doctor [--json]",
 		"download": "usage: llamaherd download list|<ref> [<file>] [--vision <file>]|status|cancel|token [<t>|--clear]",
-		"config":   "usage: llamaherd config add|update|remove <alias> <name> [--set key=value ...]",
+		"config":   "usage: llamaherd config add|update|remove|rename <alias> <name> [--set key=value ...]",
 		"model":    "usage: llamaherd model rename <alias> [--name N] [--alias A] | model move <alias> [<a/b/c>]",
 		"category": "usage: llamaherd category create|delete <a/b/c> | category rename <a/b/c> <new-name>",
 		"version":  "usage: llamaherd version          # print the version and exit",
@@ -267,7 +269,7 @@ func ctlRequest(args []string) ([]byte, int, error) {
 		return libraryCategoryRequest(args)
 	case "config":
 		if len(args) < 3 {
-			return []byte("config add|update|remove required"), 400, nil
+			return []byte("config add|update|remove|rename required"), 400, nil
 		}
 		action := args[1]
 		var req struct {
@@ -330,6 +332,13 @@ func ctlRequest(args []string) ([]byte, int, error) {
 			req.Alias = args[2]
 			req.Name = args[3]
 			return post("/config/remove", req)
+		case "rename":
+			if len(args) < 5 {
+				return []byte("usage: config rename <alias> <old-name> <new-name>"), 400, nil
+			}
+			return post("/config/rename", map[string]string{
+				"alias": args[2], "name": args[3], "newName": args[4],
+			})
 		}
 		return []byte("unknown config subcommand"), 400, nil
 	}

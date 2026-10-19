@@ -32,6 +32,7 @@
     logsGroup: $("logsGroup"),
     logsTitle: $("logsTitle"),
     presetSel: $("presetSel"),
+    presetMenuBtn: $("presetMenuBtn"),
     saveBtn: $("saveBtn"),
     loadBtn: $("loadBtn"),
     startBtn: $("startBtn"),
@@ -432,6 +433,8 @@
     });
   }
 
+  const NEW_PRESET = "\u0001new";
+
   function renderPreset() {
     const names = snap.presetNames || [];
     el.presetSel.innerHTML = "";
@@ -441,6 +444,14 @@
       opt.textContent = name;
       el.presetSel.appendChild(opt);
     });
+    const sep = document.createElement("option");
+    sep.disabled = true;
+    sep.textContent = "──────────";
+    el.presetSel.appendChild(sep);
+    const add = document.createElement("option");
+    add.value = NEW_PRESET;
+    add.textContent = "<new preset…>";
+    el.presetSel.appendChild(add);
     const selected = names[snap.selectedPreset];
     if (selected) el.presetSel.value = selected;
   }
@@ -930,11 +941,19 @@
     fields: $("editFields"), msg: $("editMsg"), ok: $("editOk"), cancel: $("editCancel"),
   };
   let editSubmit = null;
+  let editCancel = null;
 
-  function closeEdit() { edit.modal.hidden = true; editSubmit = null; }
+  function closeEdit() {
+    edit.modal.hidden = true;
+    editSubmit = null;
+    const fn = editCancel;
+    editCancel = null;
+    if (fn) fn();
+  }
 
-  // spec: {title, text, submit, fields:[{key,label,hint,value,options?,mono?}], onSubmit(values)}
+  // spec: {title, text, submit, fields:[{key,label,hint,value,options?,mono?}], onSubmit(values), onCancel?}
   function openEdit(spec) {
+    editCancel = spec.onCancel || null;
     edit.title.textContent = spec.title;
     edit.text.textContent = spec.text || "";
     edit.text.hidden = !spec.text;
@@ -980,6 +999,7 @@
       edit.ok.disabled = true;
       try {
         await spec.onSubmit(values());
+        editCancel = null;
         closeEdit();
       } catch (e) {
         edit.msg.textContent = e && e.message ? e.message : String(e);
@@ -1007,6 +1027,68 @@
       ],
       onSubmit: (v) => libCall("RenameModel", model.path, v.name, v.alias),
     });
+  }
+
+  // ---- preset editing: new / rename / delete via the Config dropdown ----
+
+  function currentPresetName() {
+    const names = (snap && snap.presetNames) || [];
+    return names[snap.selectedPreset] || "";
+  }
+
+  function newPresetDialog() {
+    const alias = (snap && snap.alias) || "this model";
+    openEdit({
+      title: "New preset",
+      text: `Saves the current form as a new preset for ${alias}.`,
+      submit: "Create",
+      fields: [{
+        key: "name", label: "Preset name", placeholder: "e.g. fast, long-context",
+        hint: "Must be unique within this model; existing presets are not overwritten.",
+      }],
+      onCancel: renderPreset,
+      onSubmit: (v) => {
+        const name = v.name.trim();
+        if (!name) return Promise.reject(new Error("Enter a preset name."));
+        return libCall("SavePresetAs", name);
+      },
+    });
+  }
+
+  function renamePresetDialog() {
+    const old = currentPresetName();
+    if (!old) return;
+    openEdit({
+      title: "Rename preset",
+      text: `${(snap && snap.alias) || ""} › ${old}`,
+      submit: "Rename",
+      fields: [{ key: "name", label: "New name", value: old }],
+      onSubmit: (v) => {
+        const name = v.name.trim();
+        if (!name) return Promise.reject(new Error("Enter a preset name."));
+        if (name === old) return Promise.resolve();
+        return libCall("RenamePreset", snap.alias, old, name);
+      },
+    });
+  }
+
+  function deletePreset() {
+    const name = currentPresetName();
+    const names = (snap && snap.presetNames) || [];
+    if (!name || names.length <= 1) return;
+    if (!window.confirm(`Delete the preset "${name}" from ${snap.alias}?\n\nThe other presets in its config file are kept.`)) return;
+    call("RemovePreset", snap.alias, name);
+  }
+
+  function openPresetMenu(x, y) {
+    const names = (snap && snap.presetNames) || [];
+    showCtxMenu(x, y, [
+      { label: "New preset…", run: newPresetDialog },
+      { label: "Rename preset…", run: renamePresetDialog },
+      { label: "Discard unsaved changes", disabled: !snap.dirty, run: () => call("SelectPreset", currentPresetName()) },
+      "-",
+      { label: "Delete preset", danger: true, disabled: names.length <= 1, run: deletePreset },
+    ]);
   }
 
   // All category paths that exist (model placements, their ancestors, empty folders).
@@ -1267,7 +1349,17 @@
     initTheme();
 
     $("newCatBtn").addEventListener("click", () => newFolderDialog(browsePath || []));
-    el.presetSel.addEventListener("change", () => call("SelectPreset", el.presetSel.value));
+    el.presetSel.addEventListener("change", () => {
+      if (el.presetSel.value === NEW_PRESET) {
+        newPresetDialog();
+        return;
+      }
+      call("SelectPreset", el.presetSel.value);
+    });
+    el.presetMenuBtn.addEventListener("click", () => {
+      const r = el.presetMenuBtn.getBoundingClientRect();
+      openPresetMenu(r.left, r.bottom + 2);
+    });
     el.saveBtn.addEventListener("click", () => call("SaveConfig"));
     el.loadBtn.addEventListener("click", () => call("LoadConfig"));
     el.startBtn.addEventListener("click", () => call("StartServer"));

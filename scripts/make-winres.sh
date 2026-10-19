@@ -10,8 +10,8 @@ cd "$(dirname "$0")/.."
 go run github.com/tc-hib/go-winres@v0.3.3 simply \
   --arch amd64 \
   --manifest none \
-  --product-version "0.3.0" \
-  --file-version "0.3.0" \
+  --product-version "0.3.1" \
+  --file-version "0.3.1" \
   --icon assets/llamaherd.png \
   --product-name "LlamaHerd" \
   --file-description "LlamaHerd - llama.cpp control panel" \

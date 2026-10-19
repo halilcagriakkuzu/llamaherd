@@ -56,6 +56,10 @@ func (f *fake) UpdatePreset(a, n string, c schema.Config) error {
 	return nil
 }
 func (f *fake) RemovePreset(a, n string) error { f.rec("remove:" + a + "/" + n); return nil }
+func (f *fake) RenamePreset(a, oldName, newName string) error {
+	f.rec("rename:" + a + "/" + oldName + ">" + newName)
+	return nil
+}
 func (f *fake) RenameModel(ref, name, alias string) error {
 	f.rec("rename:" + ref + "|" + name + "|" + alias)
 	return f.openErr
@@ -153,7 +157,8 @@ func TestPresetEndpoints(t *testing.T) {
 	do(t, h, "POST", "/config/add", body, nil)
 	do(t, h, "POST", "/config/update", body, nil)
 	do(t, h, "POST", "/config/remove", `{"alias":"a","name":"n"}`, nil)
-	if got := strings.Join(f.calls, ","); got != "add:a/n,update:a/n,remove:a/n" {
+	do(t, h, "POST", "/config/rename", `{"alias":"a","name":"n","newName":"m"}`, nil)
+	if got := strings.Join(f.calls, ","); got != "add:a/n,update:a/n,remove:a/n,rename:a/n>m" {
 		t.Errorf("calls = %s", got)
 	}
 	if f.added.Basic.Model != "m.gguf" || f.added.Basic.Port != 9000 {

@@ -54,6 +54,11 @@ holding named presets (full Basic + Advanced field sets). A model without a file
 synthesized `default` preset that fits your GPU. Model/mmproj/draft paths inside are stored
 relative to the models directory, so files stay portable.
 
+In the GUI, the Config dropdown lists the presets. **Save** overwrites the selected preset,
+`<new preset…>` (at the bottom of the list) asks for a name and saves the current form as a
+new preset, and the `⋯` button next to it renames or deletes the selected preset or discards
+unsaved edits.
+
 ## Library: `library/<id>.json`
 
 Per-model metadata, created automatically:

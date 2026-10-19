@@ -165,14 +165,52 @@ func (a *App) UpdatePreset(alias, name string, cfg schema.Config) error {
 	return fmt.Errorf("no preset %q for alias %s", name, alias)
 }
 
+// RenamePreset changes a preset's name and persists it. Its contents and the
+// current selection are unchanged.
+func (a *App) RenamePreset(alias, oldName, newName string) error {
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return fmt.Errorf("preset name required")
+	}
+	if newName == oldName {
+		return nil
+	}
+	list := a.presets[alias]
+	idx := -1
+	for i := range list {
+		if list[i].Name == oldName {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("no preset %q for alias %s", oldName, alias)
+	}
+	if a.findPreset(alias, newName) != nil {
+		return fmt.Errorf("preset %q already exists for %s", newName, alias)
+	}
+	next := append([]schema.Preset(nil), list...)
+	next[idx].Name = newName
+	if err := store.SaveAlias(settings.ConfigsDir(), alias, next); err != nil {
+		a.Log(fmt.Sprintf("ctl: save FAILED configs/%s.json: %v", alias, err))
+		return err
+	}
+	a.presets[alias] = next
+	a.Log(fmt.Sprintf("ctl: renamed preset %s/%s to %s", alias, oldName, newName))
+	a.emitState()
+	return nil
+}
+
 // RemovePreset deletes the named preset and persists the remainder.
 func (a *App) RemovePreset(alias, name string) error {
 	list := a.presets[alias]
 	kept := make([]schema.Preset, 0, len(list))
 	found := false
-	for _, p := range list {
+	removed := -1
+	for i, p := range list {
 		if p.Name == name {
 			found = true
+			removed = i
 			continue
 		}
 		kept = append(kept, p)
@@ -183,13 +221,23 @@ func (a *App) RemovePreset(alias, name string) error {
 	if len(kept) == 0 {
 		return fmt.Errorf("refusing to remove the last preset of %s (edit it instead)", alias)
 	}
+	sel := a.selPreset
 	a.presets[alias] = kept
 	if err := store.SaveAlias(settings.ConfigsDir(), alias, kept); err != nil {
 		a.Log(fmt.Sprintf("ctl: save FAILED configs/%s.json: %v", alias, err))
 		return err
 	}
-	if a.alias() == alias && a.presetNames()[a.selPreset] == name {
-		a.applyPreset(0)
+	if a.alias() == alias {
+		if sel < 0 || sel >= len(list) {
+			sel = 0
+		}
+		switch {
+		case sel == removed:
+			a.applyPreset(0)
+		case sel > removed:
+			// Keep the same preset applied; only its index moved down.
+			a.selPreset = sel - 1
+		}
 	}
 	a.Log(fmt.Sprintf("ctl: removed preset %s/%s", alias, name))
 	a.emitState()
