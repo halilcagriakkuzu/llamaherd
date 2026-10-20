@@ -6,6 +6,7 @@ package control
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -250,4 +251,43 @@ func RunUpdateScript(script string, logf func(string)) (cancel func(), done <-ch
 		ch <- cmd.Wait()
 	}()
 	return func() { killGroup(cmd.Process.Pid) }, ch
+}
+
+// ProbeBinary checks that a llama-server candidate actually runs and returns its
+// version line. A "wsl:" path is probed inside the distro.
+func ProbeBinary(bin string) (string, error) {
+	bin = strings.TrimSpace(bin)
+	if bin == "" {
+		return "", fmt.Errorf("empty llama-server path")
+	}
+	name, args := bin, []string{"--version"}
+	if w, ok := ParseWSLBin(bin); ok {
+		name, args = w.Run(w.Path, "--version")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	text := strings.TrimSpace(string(out))
+	if err != nil {
+		if text == "" {
+			return "", fmt.Errorf("%s --version failed: %w", bin, err)
+		}
+		return "", fmt.Errorf("%s --version failed: %w: %s", bin, err, firstLine(text))
+	}
+	if text == "" {
+		return "", fmt.Errorf("%s --version produced no output", bin)
+	}
+	for _, l := range strings.Split(text, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(l), "version:") {
+			return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(l), "version:")), nil
+		}
+	}
+	return firstLine(text), nil
+}
+
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return strings.TrimSpace(s[:i])
+	}
+	return strings.TrimSpace(s)
 }

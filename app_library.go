@@ -5,15 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"llamaherd/control"
 	"llamaherd/settings"
 	"llamaherd/store"
 )
 
-// libMu serializes the library edits below (rename / move / category ops).
-var libMu sync.Mutex
+// Library edits mutate the same state snapshot as the rest of App, so they use
+// stateMu (never a second lock: that would invert lock order with snapshot).
 
 // modelIndex resolves a model reference (file path or alias) to its index in
 // a.models; mmproj sidecars are never addressable.
@@ -22,7 +21,7 @@ func (a *App) modelIndex(ref string) (int, error) {
 		if m.IsMMProj {
 			continue
 		}
-		if m.Path == ref || m.Alias == ref {
+		if settings.SamePath(m.Path, ref) || strings.EqualFold(m.Alias, ref) {
 			return i, nil
 		}
 	}
@@ -44,8 +43,8 @@ func (a *App) serverUsesAlias(alias string) bool {
 // Changing the alias moves configs/<old>.json to configs/<new>.json and rewrites
 // the --alias inside it. The .gguf file is never touched.
 func (a *App) RenameModel(ref, name, alias string) error {
-	libMu.Lock()
-	defer libMu.Unlock()
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 
 	i, err := a.modelIndex(ref)
 	if err != nil {
@@ -58,7 +57,7 @@ func (a *App) RenameModel(ref, name, alias string) error {
 	if len(name) > 120 {
 		return fmt.Errorf("display name is too long (max 120 characters)")
 	}
-	derived := store.DerivedAlias(m.Path)
+	derived := m.ID
 	newAlias := derived
 	if strings.TrimSpace(alias) != "" {
 		if newAlias, err = store.NormalizeAlias(alias); err != nil {
@@ -98,7 +97,7 @@ func (a *App) RenameModel(ref, name, alias string) error {
 		a.models[i].Alias = newAlias
 	}
 
-	err = store.UpdateMeta(settings.LibraryDir(), m.Path, func(meta *store.Meta) {
+	err = store.UpdateMetaByID(settings.LibraryDir(), m.ID, m.Path, func(meta *store.Meta) {
 		meta.Name = name
 		meta.Alias = ""
 		if newAlias != derived {
@@ -114,15 +113,15 @@ func (a *App) RenameModel(ref, name, alias string) error {
 		a.models[i].Display = store.DisplayName(m.Path)
 	}
 	a.Log(fmt.Sprintf("library: renamed %q → name %q, alias %q", oldAlias, a.models[i].Display, newAlias))
-	a.emitState()
+	a.emitStateLocked()
 	return nil
 }
 
 // SetModelCategory places a model in the given category path; an empty path
 // removes it from its category (it returns to "Uncategorized").
 func (a *App) SetModelCategory(ref string, category []string) error {
-	libMu.Lock()
-	defer libMu.Unlock()
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 
 	i, err := a.modelIndex(ref)
 	if err != nil {
@@ -132,14 +131,14 @@ func (a *App) SetModelCategory(ref string, category []string) error {
 	if err != nil {
 		return err
 	}
-	if err := store.UpdateMeta(settings.LibraryDir(), a.models[i].Path, func(meta *store.Meta) {
+	if err := store.UpdateMetaByID(settings.LibraryDir(), a.models[i].ID, a.models[i].Path, func(meta *store.Meta) {
 		meta.Category = clean
 	}); err != nil {
 		return err
 	}
 	a.models[i].Category = clean
 	a.Log(fmt.Sprintf("library: %s → %s", a.models[i].Display, categoryLabel(clean)))
-	a.emitState()
+	a.emitStateLocked()
 	return nil
 }
 
@@ -168,8 +167,8 @@ func (a *App) categoryExists(path []string) bool {
 
 // CreateCategory adds an (initially empty) category folder.
 func (a *App) CreateCategory(path []string) error {
-	libMu.Lock()
-	defer libMu.Unlock()
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 
 	clean, err := store.CleanCategoryPath(path)
 	if err != nil {
@@ -186,15 +185,15 @@ func (a *App) CreateCategory(path []string) error {
 		return err
 	}
 	a.Log("library: created category " + categoryLabel(clean))
-	a.emitState()
+	a.emitStateLocked()
 	return nil
 }
 
 // RenameCategory renames the last segment of path, moving every model and empty
 // folder below it. A sibling with the same name is refused (no silent merge).
 func (a *App) RenameCategory(path []string, newName string) error {
-	libMu.Lock()
-	defer libMu.Unlock()
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 
 	if len(path) == 0 {
 		return fmt.Errorf("category path is empty")
@@ -216,7 +215,7 @@ func (a *App) RenameCategory(path []string, newName string) error {
 			continue
 		}
 		nc := store.RenamePathPrefix(m.Category, path, name)
-		if err := store.UpdateMeta(settings.LibraryDir(), m.Path, func(meta *store.Meta) { meta.Category = nc }); err != nil {
+		if err := store.UpdateMetaByID(settings.LibraryDir(), m.ID, m.Path, func(meta *store.Meta) { meta.Category = nc }); err != nil {
 			return err
 		}
 		a.models[i].Category = nc
@@ -228,15 +227,15 @@ func (a *App) RenameCategory(path []string, newName string) error {
 		return err
 	}
 	a.Log(fmt.Sprintf("library: renamed category %s → %s", categoryLabel(path), name))
-	a.emitState()
+	a.emitStateLocked()
 	return nil
 }
 
 // DeleteCategory removes a category folder. Models inside (at any depth) are not
 // deleted: they move up to the parent category (or Uncategorized).
 func (a *App) DeleteCategory(path []string) error {
-	libMu.Lock()
-	defer libMu.Unlock()
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 
 	if len(path) == 0 {
 		return fmt.Errorf("category path is empty")
@@ -251,7 +250,7 @@ func (a *App) DeleteCategory(path []string) error {
 		if m.IsMMProj || !store.PathHasPrefix(m.Category, path) {
 			continue
 		}
-		if err := store.UpdateMeta(settings.LibraryDir(), m.Path, func(meta *store.Meta) { meta.Category = parent }); err != nil {
+		if err := store.UpdateMetaByID(settings.LibraryDir(), m.ID, m.Path, func(meta *store.Meta) { meta.Category = parent }); err != nil {
 			return err
 		}
 		a.models[i].Category = parent
@@ -269,6 +268,6 @@ func (a *App) DeleteCategory(path []string) error {
 	}
 	a.Log(fmt.Sprintf("library: deleted category %s (%d model(s) moved to %s)",
 		categoryLabel(path), moved, categoryLabel(parent)))
-	a.emitState()
+	a.emitStateLocked()
 	return nil
 }

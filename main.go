@@ -27,6 +27,7 @@ func main() {
 		MinWidth:         960,
 		MinHeight:        640,
 		DisableResize:    false,
+		DragAndDrop:      &options.DragAndDrop{EnableFileDrop: true},
 		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 250, G: 250, B: 252, A: 1},
 		OnStartup:        app.startup,

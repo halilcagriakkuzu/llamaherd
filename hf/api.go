@@ -3,6 +3,7 @@ package hf
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +43,10 @@ func escapePath(p string) string {
 
 var httpClient = &http.Client{Timeout: 60 * time.Second}
 
+// ErrAccessDenied marks a 401/403 from the Hub: a private repository, or a
+// gated one whose licence the token's account has not accepted (yet).
+var ErrAccessDenied = errors.New("access denied")
+
 // TreeFile is one file entry from the Hub file listing. OID is the sha256 of
 // an LFS file (empty for small non-LFS files).
 type TreeFile struct {
@@ -78,7 +83,7 @@ func Tree(ctx context.Context, repo, token string) ([]TreeFile, error) {
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return nil, fmt.Errorf("repository %s requires authentication (set a Hugging Face token)", repo)
+		return nil, fmt.Errorf("%w: repository %s requires authentication (set a Hugging Face token)", ErrAccessDenied, repo)
 	case http.StatusNotFound:
 		return nil, fmt.Errorf("repository not found: %s", repo)
 	default:

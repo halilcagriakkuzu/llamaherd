@@ -152,6 +152,33 @@ func TestEstimateMissingModel(t *testing.T) {
 	}
 }
 
+func TestSafeContextAndFitPreset(t *testing.T) {
+	// 12 GiB of weights on a 16 GiB card leaves little room for KV: 64k must
+	// shrink, and it must never exceed the trained 32k window.
+	p, err := ggufgen.Write(filepath.Join(t.TempDir(), "big.gguf"), ggufgen.Spec{
+		Arch: "qwen35", Layers: 64, Heads: 24, KVHeads: 4, KeyLen: 256, ValueLen: 256,
+		FullAttentionInterval: 4, ContextLength: 32768, PadBytes: 12 << 30,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeGPU(t, 16384)
+	cfg := baseCfg(p)
+	cfg.Basic.Context = 65536
+	ctx := SafeContext(cfg, 65536)
+	if ctx > 32768 || ctx < 2048 {
+		t.Fatalf("SafeContext = %d, want within 2048..32768", ctx)
+	}
+	cfg.Basic.Context = ctx
+	if !EstimateVram(cfg).Fits {
+		t.Errorf("chosen context %d does not fit", ctx)
+	}
+	fitted := FitPreset(cfg, 65536)
+	if fitted.Basic.Context > 32768 || !EstimateVram(fitted).Fits {
+		t.Errorf("FitPreset = ctx %d ngl %s (not fitting)", fitted.Basic.Context, fitted.Basic.GPULayers)
+	}
+}
+
 func TestSafeGpuLayers(t *testing.T) {
 	model := synthModel(t, 6144)
 	cfg := baseCfg(model)

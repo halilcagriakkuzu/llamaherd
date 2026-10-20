@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
@@ -112,4 +113,37 @@ func BinaryExists(bin string) bool {
 	}
 	_, err := os.Stat(bin)
 	return err == nil
+}
+
+// DiscoverWSLBinaries looks for llama-server inside each installed WSL distro
+// (Windows only). It is best-effort and returns "wsl:<distro>:<path>" values.
+func DiscoverWSLBinaries() []string {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+	out, err := exec.Command("wsl.exe", "-l", "-q").Output()
+	if err != nil {
+		return nil
+	}
+	var found []string
+	for _, line := range strings.Split(string(out), "\n") {
+		distro := strings.TrimSpace(strings.TrimRight(line, "\r"))
+		if distro == "" {
+			continue
+		}
+		w := WSLBin{Distro: distro}
+		name, args := w.Run("sh", "-lc", "command -v llama-server 2>/dev/null || true")
+		probe, err := exec.Command(name, args...).Output()
+		if err != nil {
+			continue
+		}
+		p := strings.TrimSpace(string(probe))
+		if i := strings.LastIndexByte(p, '\n'); i >= 0 {
+			p = strings.TrimSpace(p[i+1:])
+		}
+		if strings.HasPrefix(p, "/") {
+			found = append(found, (WSLBin{Distro: distro, Path: p}).String())
+		}
+	}
+	return found
 }

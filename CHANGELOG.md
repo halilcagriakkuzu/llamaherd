@@ -7,6 +7,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Model management in the GUI**: search/filter (favorites, recently used, vision, MTP),
+  pin models, rescan the models directory, reveal a model in the file manager, copy its path,
+  and delete the `.gguf` (the preset file is kept).
+- **Open chat**: a header button opens llama-server's built-in web UI.
+- **Restart** with the current form settings; restart is also available as `llamaherd restart`.
+- **Native file/folder pickers** for the first-run paths, the llama.cpp tab paths, `--mmproj`
+  and draft models.
+- **Logs toolbar**: filter, errors-only, pause/resume auto-scroll, copy, save and clear; the
+  view is capped at 5 000 lines.
+- **Error toasts** for failed actions, and preset duplicate/reset/export actions.
+- **Download catalog**: installed badge, "Open" for installed files and free-disk readout.
+- **Model details**: a Details… action shows architecture, layers, trained context, quant,
+  file size, source, sidecars and last use (plus copy path).
+- **Live validation and Auto-fit**: the form reports context/trained-context, `-ngl`, port,
+  sidecar and VRAM-budget problems inline; Auto-fit chooses a context and `-ngl` that pass
+  the guard. API: `POST /config/autofit`; CLI: `config autofit`.
+- **Performance charts**: 10-minute VRAM / CPU RAM / tokens-per-second sparklines with GPU
+  utilisation and temperature when available.
+- **Security**: the loopback API now validates `Host`/`Origin`, requires JSON content type for
+  mutating requests, and generates a bearer token on first setup (`"apiToken": "off"` opts out).
+- **Import local models**: an Import dialog copies (or moves) a `.gguf` into the models
+  directory, asks whether the model has a vision projector (with a file picker), writes its
+  library metadata and creates a fitted preset. API: `POST /model/import`; CLI:
+  `model import <file> [--mmproj <file>] [--move]`.
+- **Benchmarks**: measure the loaded model + config with a fixed prompt (`/completion`
+  timings), store the result per model/preset/config fingerprint, and show a fastest-first
+  table with prompt/gen tok/s and peak VRAM. Editing a config marks its old result as
+  “config edited”; results survive restarts. API: `POST /benchmark`, `GET /benchmarks`,
+  `POST /benchmarks/clear`; CLI: `bench [list|clear]`.
+- **Reasoning budget** is now wired to `--reasoning-budget` (0 = unset/server default).
+- **Persistent logs**: app/server output is mirrored into a rotating file
+  (`<data>/logs/llamaherd.log`, 5 MiB × 3, `logFile: "off"` to disable), exposed as
+  `GET /logs?tail=n` / `?after=seq`, `llamaherd logs [-f]`, and a **Copy diagnostics**
+  action (version, paths, doctor report, last 200 lines).
+- **CLI polish**: `list --json`, `status --summary` and shell completions
+  (`llamaherd completion bash|zsh|fish`).
+- **Onboarding detection**: a **Detect** button in the first-run dialog and the llama.cpp
+  tab searches PATH, common llama.cpp build trees and (on Windows) WSL distros, then
+  validates the binary with `--version`. `SetPaths` refuses a binary that does not run.
+- **Import v2**: import several `.gguf` files or a whole folder at once (one shared vision
+  projector), drag-and-drop files onto the Models panel, and duplicate detection (size first,
+  then sha256) that reports “already imported as …” instead of copying again; an explicit
+  “import duplicates anyway” option bypasses it. Results are reported per file. API:
+  `POST /model/import` takes `paths` + `allowDuplicate` (the single `src` form still works)
+  and `POST /model/import/check` previews; CLI: `model import <file|dir>... [--check]
+  [--allow-duplicate]`.
+- **Gated repositories and licences at download time**: finding a repo's files now shows its
+  licence and, for gated repositories, a notice with an “Open licence page” button. A gated
+  download without a Hugging Face token stops before transferring anything, and a 401/403
+  on a gated repo explains that the licence must be accepted (or that manual approval is
+  pending) instead of a bare “access denied”. `GET /download/files` returns `gated` and
+  `license`. Downloaded models record their repo and licence in `library/<id>.json`
+  (`provenance`), shown in the details drawer with an “Open source page” link. A model that
+  is already on disk is never checked or warned about again.
+- API: `POST /restart`, `/rescan`, `/model/delete`, `/model/favorite`, `/config/reset` and
+  `GET /config/export`; CLI: `restart`, `rescan`, `model delete|favorite`, `config reset|export`.
+
+### Security
+
+- Hugging Face references are validated before any request: `../` traversal, encoded
+  separators, backslashes, control characters and invalid `owner/name` segments are
+  rejected, and the download destination must stay inside the models directory.
+  `ParseRef` and the GGUF parser have fuzz targets; separately supplied file refs are validated too.
+- Added [`docs/security.md`](docs/security.md) (API threat model, outbound hosts, offline use)
+  and a "no telemetry" privacy section to the README.
+
+### Fixed
+
+- `POST /config/update` now really merges a partial config (as documented) instead of
+  replacing the preset and dropping omitted fields.
+- Case-only path differences (Windows/macOS) no longer break model lookups, config
+  relativisation or import containment checks.
+- **Data races in `App` state**: config/model/preset reads and writes are now serialized with
+  a state lock; a `-race` regression test hammers config writes and snapshots concurrently.
+- **Duplicate base names** (e.g. two `model.gguf` files in different folders) no longer share
+  one `configs/<alias>.json` / `library/<id>.json`; colliding ids get a stable path hash.
+- **Changing paths while a server is running** is refused instead of silently orphaning the
+  process.
+- A start that never answers `/health` no longer hangs in `starting` forever: it becomes
+  “not responding” with Retry/Stop actions and the last 20 server log lines.
+- Downloaded/default presets now auto-fit the context to the card and trained window instead
+  of hardcoding 51 200 tokens.
+- The API rejects cross-site `text/plain` POSTs, `Host` headers that are not loopback, and
+  non-loopback browser origins.
+
+### Tooling
+
+- Headless UI smoke test (`scripts/uishot/smoke.sh`) asserts the running model list,
+  benchmark table, import/mmproj dialog and the not-responding banner; it runs in CI.
+- Added a snapshot JSON contract test so frontend keys cannot be renamed silently.
+
+### Changed
+
+- New presets use a fitted context and the largest `-ngl` that fits; the VRAM guard is
+  unchanged.
+
 ## [0.3.1] - 2026-10-19
 
 ### Added

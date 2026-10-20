@@ -14,6 +14,10 @@ Windows 11: `powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -FromR
 
 **2. Point it at `llama-server` and your models**
 
+In the GUI, the first-run dialog has a **Detect** button: it searches `PATH`, the usual
+llama.cpp build directories (and WSL distros on Windows) and validates the binary with
+`--version` before filling the field.
+
 ```bash
 export LLAMAHERD_SERVER_BIN=~/llama.cpp/build/bin/llama-server
 export LLAMAHERD_MODELS_DIR=~/LlamaHerd/models      # default; scanned recursively

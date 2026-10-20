@@ -33,10 +33,50 @@
     logsTitle: $("logsTitle"),
     presetSel: $("presetSel"),
     presetMenuBtn: $("presetMenuBtn"),
+    autoFitBtn: $("autoFitBtn"),
+    validation: $("validation"),
+    chartVram: $("chartVram"),
+    chartRam: $("chartRam"),
+    chartSpeed: $("chartSpeed"),
+    chartVramVal: $("chartVramVal"),
+    chartRamVal: $("chartRamVal"),
+    chartSpeedVal: $("chartSpeedVal"),
+    metricsHint: $("metricsHint"),
+    detailsModal: $("detailsModal"),
+    detailsTitle: $("detailsTitle"),
+    detailsBody: $("detailsBody"),
+    detailsCopy: $("detailsCopy"),
+    detailsOpenSource: $("detailsOpenSource"),
+    detailsClose: $("detailsClose"),
+    detailsMsg: $("detailsMsg"),
     saveBtn: $("saveBtn"),
     loadBtn: $("loadBtn"),
     startBtn: $("startBtn"),
     stopBtn: $("stopBtn"),
+    restartBtn: $("restartBtn"),
+    chatBtn: $("chatBtn"),
+    modelSearch: $("modelSearch"),
+    modelFilter: $("modelFilter"),
+    rescanBtn: $("rescanBtn"),
+    logFilter: $("logFilter"),
+    logErrors: $("logErrors"),
+    logAuto: $("logAuto"),
+    logCopy: $("logCopy"),
+    logDownload: $("logDownload"),
+    logClear: $("logClear"),
+    toasts: $("toasts"),
+    pathBin: $("pathBin"),
+    pathModels: $("pathModels"),
+    pathBinBrowse: $("pathBinBrowse"),
+    pathModelsBrowse: $("pathModelsBrowse"),
+    pathSave: $("pathSave"),
+    pathMsg: $("pathMsg"),
+    pathBinDetect: $("pathBinDetect"),
+    frBinDetect: $("frBinDetect"),
+    diagCopy: $("diagCopy"),
+    frBinBrowse: $("frBinBrowse"),
+    frModelsBrowse: $("frModelsBrowse"),
+    dlDisk: $("dlDisk"),
     configPath: $("configPath"),
     tabBtnBasic: $("tabBtnBasic"),
     tabBtnAdvanced: $("tabBtnAdvanced"),
@@ -57,6 +97,34 @@
       warnBanner: $("warnBanner"),
     vramEstimate: $("vramEstimate"),
     doctorBanner: $("doctorBanner"),
+    procBanner: $("procBanner"),
+    procBannerTitle: $("procBannerTitle"),
+    procBannerMsg: $("procBannerMsg"),
+    procBannerLog: $("procBannerLog"),
+    procRetry: $("procRetry"),
+    procStop: $("procStop"),
+    benchRun: $("benchRun"),
+    benchClear: $("benchClear"),
+    benchHint: $("benchHint"),
+    benchTable: $("benchTable"),
+    benchBody: $("benchBody"),
+    benchEmpty: $("benchEmpty"),
+    importModal: $("importModal"),
+    importModelsDir: $("importModelsDir"),
+    importModelPath: $("importModelPath"),
+    importModelBrowse: $("importModelBrowse"),
+    importList: $("importList"),
+    importAllowDupRow: $("importAllowDupRow"),
+    importAllowDup: $("importAllowDup"),
+    importHasMMProj: $("importHasMMProj"),
+    importMMProjRow: $("importMMProjRow"),
+    importMMProjPath: $("importMMProjPath"),
+    importMMProjBrowse: $("importMMProjBrowse"),
+    importMove: $("importMove"),
+    importMsg: $("importMsg"),
+    importCancel: $("importCancel"),
+    importOk: $("importOk"),
+    importOpen: $("importOpen"),
     doctorList: $("doctorList"),
     doctorRefresh: $("doctorRefresh"),
     doctorSummary: $("doctorSummary"),
@@ -83,6 +151,9 @@
     catClose: $("catClose"),
     dlFiles: $("dlFiles"),
     dlFilesHead: $("dlFilesHead"),
+    dlGated: $("dlGated"),
+    dlGatedText: $("dlGatedText"),
+    dlGatedOpen: $("dlGatedOpen"),
     dlOptions: $("dlOptions"),
     dlFileList: $("dlFileList"),
     dlClose: $("dlClose"),
@@ -101,6 +172,8 @@
   let bootPrinted = false;
   let uptimeSec = 0;
   let lastStatus = "";
+  let lastWarn = "";
+  let pathsDirty = false;
 
   // ---- bindings ----
 
@@ -114,23 +187,102 @@
       appendLog("bindings unavailable (run inside wails)");
       return;
     }
-    Promise.resolve(a[method](...args)).catch((err) =>
-      appendLog(`error: ${err && err.message ? err.message : err}`)
-    );
+    Promise.resolve(a[method](...args)).catch((err) => {
+      const msg = err && err.message ? err.message : String(err);
+      appendLog(`error: ${msg}`);
+      toast(msg, "error");
+    });
   }
 
   function runtime() {
     return window.runtime || null;
   }
 
+  // ---- toasts ----
+
+  function toast(message, kind) {
+    if (!el.toasts) return;
+    const t = document.createElement("div");
+    t.className = "toast" + (kind ? " " + kind : "");
+    t.textContent = String(message);
+    el.toasts.appendChild(t);
+    setTimeout(() => t.remove(), kind === "error" ? 8000 : 4000);
+  }
+
   // ---- log ----
 
+  const LOG_MAX = 5000;
+  const logLines = [];
+  let logAutoScroll = true;
+
+  const logIsError = (text) =>
+    /(error|fail|fatal|panic|exception|crashed|exit status [1-9])/i.test(text);
+
+  function logMatches(text) {
+    const q = (el.logFilter.value || "").trim().toLowerCase();
+    if (q && !text.toLowerCase().includes(q)) return false;
+    if (el.logErrors.checked && !logIsError(text)) return false;
+    return true;
+  }
+
+  function renderLogs() {
+    const frag = document.createDocumentFragment();
+    logLines.forEach((l) => {
+      if (!logMatches(l.text)) return;
+      const div = document.createElement("div");
+      if (l.cls) div.className = l.cls;
+      div.textContent = l.text;
+      frag.appendChild(div);
+    });
+    el.logView.innerHTML = "";
+    el.logView.appendChild(frag);
+    if (logAutoScroll) el.logView.scrollTop = el.logView.scrollHeight;
+  }
+
   function appendLog(line) {
+    const text = String(line);
+    logLines.push({ text, cls: text.startsWith("server:") ? "log-server" : "" });
+    if (logLines.length > LOG_MAX) logLines.splice(0, logLines.length - LOG_MAX);
+    if (!logMatches(text)) return;
     const div = document.createElement("div");
-    if (String(line).startsWith("server:")) div.className = "log-server";
-    div.textContent = String(line);
+    if (text.startsWith("server:")) div.className = "log-server";
+    div.textContent = text;
     el.logView.appendChild(div);
-    el.logView.scrollTop = el.logView.scrollHeight;
+    while (el.logView.childNodes.length > LOG_MAX) el.logView.removeChild(el.logView.firstChild);
+    if (logAutoScroll) el.logView.scrollTop = el.logView.scrollHeight;
+  }
+
+  function setLogAuto(on) {
+    logAutoScroll = on;
+    el.logAuto.textContent = "Auto-scroll: " + (on ? "on" : "off");
+    if (on) el.logView.scrollTop = el.logView.scrollHeight;
+  }
+
+  function wireLogs() {
+    let timer = null;
+    const redraw = () => { clearTimeout(timer); timer = setTimeout(renderLogs, 120); };
+    el.logFilter.addEventListener("input", redraw);
+    el.logErrors.addEventListener("change", renderLogs);
+    el.logAuto.addEventListener("click", () => setLogAuto(!logAutoScroll));
+    el.logView.addEventListener("scroll", () => {
+      const nearBottom = el.logView.scrollHeight - el.logView.scrollTop - el.logView.clientHeight < 24;
+      if (!nearBottom && logAutoScroll) setLogAuto(false);
+    });
+    el.logClear.addEventListener("click", () => { logLines.length = 0; el.logView.innerHTML = ""; });
+    el.logCopy.addEventListener("click", () => {
+      const text = logLines.filter((l) => logMatches(l.text)).map((l) => l.text).join("\n");
+      if (!navigator.clipboard) { toast("clipboard unavailable", "warn"); return; }
+      navigator.clipboard.writeText(text).then(() => toast("log copied", "ok"), () => toast("could not copy log", "error"));
+    });
+    el.logDownload.addEventListener("click", () => {
+      const text = logLines.filter((l) => logMatches(l.text)).map((l) => l.text).join("\n");
+      const blob = new Blob([text], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "llamaherd-" + new Date().toISOString().replace(/[:.]/g, "-") + ".log";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
   }
 
   // ---- form ----
@@ -143,7 +295,7 @@
 
   const BASIC_KEYS = [
     "model", "alias", "host", "port", "context", "gpuLayers", "parallelSlots",
-    "flashAttention", "kCache", "vCache", "jinja", "reasoningFmt",
+    "flashAttention", "kCache", "vCache", "jinja", "reasoningFmt", "reasoningBudget",
   ];
   const ADV_KEYS = [
     "specType", "draftNMax", "draftNgl", "draftTypeK", "draftTypeV", "draftModel",
@@ -158,7 +310,8 @@
     const values = Object.assign({}, basic, adv);
     document.querySelectorAll("[data-key]").forEach((node) => {
       if (!(node.dataset.key in values)) return;
-      const v = values[node.dataset.key];
+      let v = values[node.dataset.key];
+      if (node.dataset.key === "reasoningBudget" && Number(v) === 0) v = "";
       if (node.type === "checkbox") {
         if (node.checked !== !!v) node.checked = !!v;
         return;
@@ -288,6 +441,7 @@
     stopping: "STOPPING",
     running: "RUNNING",
     stopped: "STOPPED",
+    failed: "NOT RESPONDING",
   };
 
   const ST_CLASS = {
@@ -296,6 +450,7 @@
     running: ["st-running", "st-word-running"],
     stopped: ["st-stopped", "st-word-stopped"],
     crashed: ["st-crashed", "st-word-crashed"],
+    failed: ["st-failed", "st-word-failed"],
   };
 
   function parseUptime(uptime) {
@@ -322,10 +477,11 @@
     el.statusWord.textContent =
       status === "crashed" ? `CRASHED exit ${snap.crashExit}` : ST_WORD[status] || status.toUpperCase();
 
-    if (status !== lastStatus && !logsPinned && (status === "starting" || status === "crashed")) {
+    if (status !== lastStatus && !logsPinned && (status === "starting" || status === "crashed" || status === "failed")) {
       setLogsCollapsed(false, false);
     }
     lastStatus = status;
+    renderProcBanner();
 
     const srv = snap.server || {};
     el.kv.pid.textContent = srv.pid || "—";
@@ -341,8 +497,36 @@
     el.kv.uptime.textContent = srv.uptime || "—";
 
     el.startBtn.disabled =
-      status === "running" || status === "starting" || status === "stopping";
-    el.stopBtn.disabled = status !== "running";
+      status === "running" || status === "starting" || status === "stopping" || status === "failed";
+    el.stopBtn.disabled = status !== "running" && status !== "starting" && status !== "failed";
+    const active = status === "running" || status === "starting" || status === "failed";
+    el.restartBtn.hidden = !active;
+    el.restartBtn.disabled = status === "stopping" || status === "starting";
+    el.chatBtn.disabled = status !== "running";
+    el.startBtn.title = active
+      ? "llama-server is already running — use Restart to apply form changes"
+      : "Start llama-server";
+  }
+
+  // The "failed" and "crashed" states explain themselves with the server's own
+  // log tail; the user can Retry (restart) or Stop from here.
+  function renderProcBanner() {
+    const status = (snap && snap.status) || "stopped";
+    const bad = status === "failed" || status === "crashed";
+    el.procBanner.classList.toggle("hidden", !bad);
+    if (!bad) {
+      el.procBannerLog.textContent = "";
+      return;
+    }
+    el.procBannerTitle.textContent = status === "failed"
+      ? "Server is not responding"
+      : `Server crashed (exit ${snap.crashExit})`;
+    el.procBannerMsg.textContent = status === "failed"
+      ? "It never answered /health. The process is still running: check the last lines, then Retry or Stop."
+      : "The last server output is shown below.";
+    const tail = (snap.recentLog || []).slice(-20).join("\n");
+    el.procBannerLog.textContent = tail;
+    el.procBannerLog.hidden = tail === "";
   }
 
   // Category drill-down: browsePath is the folder being viewed (e.g.
@@ -350,20 +534,88 @@
   // exactly here. Uncategorized models live under "Uncategorized".
   let browsePath = null;
   let lastSelected = -2;
+  let modelQuery = "";
+  let modelFilter = "all";
   const UNCAT = "Uncategorized";
   const catOf = (m) => (m.category && m.category.length ? m.category : [UNCAT]);
   const hasPrefix = (c, p) => p.every((x, i) => c[i] === x);
 
+  function modelMatches(m) {
+    const q = modelQuery.trim().toLowerCase();
+    if (q) {
+      const hay = [m.display, m.alias, m.path, (m.category || []).join(" ")].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    switch (modelFilter) {
+      case "favorites": return !!m.favorite;
+      case "recent": return (m.lastUsed || 0) > 0;
+      case "vision": return !!m.mmproj;
+      case "mtp": return !!(m.mtp || m.mtpDraft);
+      case "uncategorized": return !(m.category && m.category.length);
+      default: return true;
+    }
+  }
+
+  function modelRow(i) {
+    const model = (snap.models || [])[i];
+    const li = document.createElement("li");
+    li.title = model.path || "";
+    const name = document.createElement("span");
+    if (model.favorite) {
+      const star = document.createElement("span");
+      star.className = "fav-star";
+      star.textContent = "★";
+      li.appendChild(star);
+    }
+    name.textContent = model.display || model.path || "—";
+    li.appendChild(name);
+    [model.mmproj ? "vision" : "", model.mtp ? "MTP" : "", model.mtpDraft ? "MTP-draft" : ""].forEach((t) => {
+      if (!t) return;
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = t;
+      li.appendChild(chip);
+    });
+    li.appendChild(menuButton((x, y) => openModelMenu(x, y, model)));
+    li.addEventListener("contextmenu", (e) => { e.preventDefault(); openModelMenu(e.clientX, e.clientY, model); });
+    if (i === snap.selectedModel) li.classList.add("selected");
+    li.addEventListener("click", () => call("SelectModel", i));
+    return li;
+  }
+
   function renderModels() {
     const models = snap.models || [];
+    const searching = modelQuery.trim() !== "" || modelFilter !== "all";
     // Jump to the selected model's folder when the selection changes.
-    if (browsePath === null || lastSelected !== snap.selectedModel) {
+    if (!searching && (browsePath === null || lastSelected !== snap.selectedModel)) {
       const sm = models[snap.selectedModel];
       if (browsePath === null || sm) browsePath = sm ? catOf(sm) : [];
       lastSelected = snap.selectedModel;
     }
 
     el.crumbs.innerHTML = "";
+    if (searching) {
+      const match = [];
+      models.forEach((m, i) => { if (!m.isMMProj && modelMatches(m)) match.push(i); });
+      if (modelFilter === "recent") {
+        match.sort((x, y) => (models[y].lastUsed || 0) - (models[x].lastUsed || 0));
+      }
+      const b = document.createElement("span");
+      b.className = "crumbs-info";
+      b.textContent = `${match.length} match(es)`;
+      el.crumbs.appendChild(b);
+      el.modelList.innerHTML = "";
+      if (!match.length) {
+        const empty = document.createElement("li");
+        empty.className = "model-empty";
+        empty.textContent = "No models match this search.";
+        el.modelList.appendChild(empty);
+        return;
+      }
+      match.forEach((i) => el.modelList.appendChild(modelRow(i)));
+      return;
+    }
+
     const addCrumb = (label, path) => {
       if (el.crumbs.childNodes.length) el.crumbs.appendChild(document.createTextNode(" › "));
       const b = document.createElement("button");
@@ -373,7 +625,7 @@
       el.crumbs.appendChild(b);
     };
     addCrumb("All", []);
-    browsePath.forEach((c, i) => addCrumb(c, browsePath.slice(0, i + 1)));
+    (browsePath || []).forEach((c, i) => addCrumb(c, browsePath.slice(0, i + 1)));
 
     el.modelList.innerHTML = "";
     const folders = new Map();
@@ -411,26 +663,7 @@
       li.addEventListener("click", () => { browsePath = fpath; renderModels(); });
       el.modelList.appendChild(li);
     });
-    here.forEach((i) => {
-      const model = models[i];
-      const li = document.createElement("li");
-      li.title = model.path || "";
-      const name = document.createElement("span");
-      name.textContent = model.display || model.path || "—";
-      li.appendChild(name);
-      [model.mmproj ? "vision" : "", model.mtp ? "MTP" : "", model.mtpDraft ? "MTP-draft" : ""].forEach((t) => {
-        if (!t) return;
-        const chip = document.createElement("span");
-        chip.className = "chip";
-        chip.textContent = t;
-        li.appendChild(chip);
-      });
-      li.appendChild(menuButton((x, y) => openModelMenu(x, y, model)));
-      li.addEventListener("contextmenu", (e) => { e.preventDefault(); openModelMenu(e.clientX, e.clientY, model); });
-      if (i === snap.selectedModel) li.classList.add("selected");
-      li.addEventListener("click", () => call("SelectModel", i));
-      el.modelList.appendChild(li);
-    });
+    here.forEach((i) => el.modelList.appendChild(modelRow(i)));
   }
 
   const NEW_PRESET = "\u0001new";
@@ -537,6 +770,13 @@
 
   const FIT_LABEL = { gpu: "fits GPU", hybrid: "GPU + RAM", cpu: "CPU", none: "too large" };
   const famName = (e) => (e.name || e.id || "").replace(/\s*\(.*\)\s*$/, "");
+  const baseName = (p) => String(p || "").split(/[\\/]/).pop();
+
+  function installedModel(e) {
+    const file = baseName(e.file);
+    if (!file) return null;
+    return (snap.models || []).find((m) => m.path && baseName(m.path) === file) || null;
+  }
 
   // One catalog row: name, size, tags and a Download button. Curated entries name
   // their exact file and never pull sidecars they did not ask for (vision
@@ -564,13 +804,28 @@
     const meta = document.createElement("div");
     meta.className = "dl-meta";
     const tags = [e.vision ? "vision" : "", e.mtp ? "MTP" : ""].filter(Boolean).join(" · ");
+    const installed = installedModel(e);
     meta.textContent = `${fmtBytes(e.bytes)}${tags ? " · " + tags : ""} · ${r.why || ""}`;
+    if (installed) {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = "installed";
+      title.appendChild(chip);
+    }
     left.appendChild(title);
     left.appendChild(meta);
     row.appendChild(left);
+    if (installed) {
+      const open = document.createElement("button");
+      open.className = "tiny";
+      open.textContent = "Open";
+      open.title = "Reveal the installed file";
+      open.addEventListener("click", () => call("RevealModel", installed.path));
+      row.appendChild(open);
+    }
     const btn = document.createElement("button");
     btn.className = "tiny";
-    btn.textContent = "Download";
+    btn.textContent = installed ? "Re-download" : "Download";
     btn.addEventListener("click", () => {
       el.dlRef.value = e.repo || "";
       call("StartDownload", e.repo || "", e.file || "", e.mmproj || "none", "none");
@@ -596,6 +851,12 @@
     });
     el.dlHidden.textContent = `${cat.fitting || 0} of ${cat.total || 0} models fit this machine` +
       (info.updated ? ` · catalog ${info.updated}` : "");
+    if (el.dlDisk) {
+      const free = fmtBytes(cat.diskFree || 0);
+      el.dlDisk.textContent = cat.modelsDir
+        ? `Models: ${cat.modelsDir} · ${cat.diskFree ? free + " free" : "free space unknown"}`
+        : "";
+    }
   }
 
   function openFullCatalog() {
@@ -651,11 +912,17 @@
 
   function sizeLabel(n) { return fmtBytes(n); }
 
+  let lastRepo = "";
   function renderRepoFiles(l) {
+    lastRepo = l.repo || "";
     el.dlFiles.hidden = false;
     el.dlCatalogBox.open = false; // the list below is the focus now
     const models = l.models || [], mms = l.mmprojs || [], mtps = l.mtpDrafts || [];
-    el.dlFilesHead.textContent = `${l.repo} — ${models.length} model file(s)`;
+    el.dlFilesHead.textContent = `${l.repo} — ${models.length} model file(s)` + (l.license ? ` · licence ${l.license}` : "");
+    el.dlGated.hidden = !(l.gated === "auto" || l.gated === "manual");
+    el.dlGatedText.textContent = l.gated === "manual"
+      ? "Gated repository: sign in on Hugging Face and request access (the authors approve requests manually), then save a token below before downloading."
+      : "Gated repository: sign in on Hugging Face and accept the licence, then save a token below before downloading.";
     el.dlOptions.innerHTML = "";
     el.dlFileList.innerHTML = "";
     if (!models.length) {
@@ -814,6 +1081,162 @@
   }
   setInterval(renderDownloadBadge, 2000); // lets the done/error badge expire
 
+  // ---- local model import ----
+
+  function toggleImportMMProj() {
+    el.importMMProjRow.hidden = !el.importHasMMProj.checked;
+    if (el.importHasMMProj.checked && !el.importMMProjPath.value) el.importMMProjBrowse.focus();
+  }
+
+  // Paths are kept in one input, separated by ";" or new lines.
+  function importPaths() {
+    return el.importModelPath.value.split(/\s*[;\n]\s*/).map((p) => p.trim()).filter(Boolean);
+  }
+
+  function renderImportRows(rows) {
+    el.importList.textContent = "";
+    el.importList.hidden = rows.length === 0;
+    rows.forEach((r) => {
+      const row = document.createElement("div");
+      row.className = "dl-row import-" + r.state;
+      const text = document.createElement("div");
+      const name = document.createElement("div");
+      name.className = "dl-name";
+      name.textContent = (r.path || "").split(/[\\/]/).pop();
+      name.title = r.path || "";
+      const meta = document.createElement("div");
+      meta.className = "dl-meta";
+      meta.textContent = r.note;
+      text.append(name, meta);
+      row.appendChild(text);
+      if (r.size) {
+        const size = document.createElement("span");
+        size.className = "dl-meta";
+        size.textContent = fmtBytes(r.size);
+        row.appendChild(size);
+      }
+      el.importList.appendChild(row);
+    });
+  }
+
+  // Preview: which files are new, already in the library or unusable.
+  let importCheckSeq = 0;
+  function checkImport() {
+    const a = app();
+    const paths = importPaths();
+    const seq = ++importCheckSeq;
+    renderImportRows([]);
+    el.importAllowDupRow.hidden = true;
+    if (!a || !paths.length || typeof a.CheckImport !== "function") return;
+    el.importMsg.textContent = "Checking for duplicates…";
+    Promise.resolve(a.CheckImport(paths)).then((checks) => {
+      if (seq !== importCheckSeq) return;
+      checks = checks || [];
+      el.importMsg.textContent = "";
+      renderImportRows(checks.map((c) => ({
+        path: c.path,
+        size: c.size,
+        state: c.error ? "error" : c.duplicate ? "duplicate" : "new",
+        note: c.error || (c.duplicate ? "already imported as " + (c.existingAlias || c.existingPath) : "new"),
+      })));
+      el.importAllowDupRow.hidden = !checks.some((c) => c.duplicate);
+    }).catch((err) => {
+      if (seq === importCheckSeq) el.importMsg.textContent = err && err.message ? err.message : String(err);
+    });
+  }
+
+  function openImport(paths) {
+    el.importModal.hidden = false;
+    el.importMsg.textContent = "";
+    el.importModelsDir.textContent = (snap && snap.modelsDir) || "";
+    el.importHasMMProj.checked = false;
+    el.importMMProjRow.hidden = true;
+    el.importMMProjPath.value = "";
+    el.importMove.checked = false;
+    el.importAllowDup.checked = false;
+    el.importModelPath.value = Array.isArray(paths) ? paths.join("; ") : "";
+    checkImport();
+    el.importModelBrowse.focus();
+  }
+
+  function closeImport() {
+    importCheckSeq++;
+    el.importModal.hidden = true;
+    el.importOk.disabled = false;
+  }
+
+  function pickImportFiles() {
+    const a = app();
+    if (!a || typeof a.PickModelFiles !== "function") return;
+    Promise.resolve(a.PickModelFiles()).then((files) => {
+      if (!files || !files.length) return;
+      el.importModelPath.value = importPaths().concat(files).join("; ");
+      checkImport();
+    }).catch((err) => toast(err && err.message ? err.message : String(err), "error"));
+  }
+
+  // Files dropped onto the Models panel open the dialog prefilled.
+  function onFilesDropped(_x, _y, paths) {
+    const ggufs = (paths || []).filter((p) => /\.gguf$/i.test(p));
+    if (!ggufs.length) {
+      toast("drop .gguf model files to import them", "error");
+      return;
+    }
+    if (!el.importModal.hidden) {
+      el.importModelPath.value = importPaths().concat(ggufs).join("; ");
+      checkImport();
+      return;
+    }
+    openImport(ggufs);
+  }
+
+  function doImport() {
+    const a = app();
+    if (!a) return;
+    const paths = importPaths();
+    if (!paths.length) {
+      el.importMsg.textContent = "Choose one or more .gguf model files.";
+      el.importModelBrowse.focus();
+      return;
+    }
+    const mm = el.importHasMMProj.checked ? el.importMMProjPath.value.trim() : "";
+    if (el.importHasMMProj.checked && !mm) {
+      el.importMsg.textContent = "Choose the vision projector (.gguf) or untick the mmproj box.";
+      el.importMMProjBrowse.focus();
+      return;
+    }
+    importCheckSeq++;
+    el.importMsg.textContent = "Importing… large files can take a while.";
+    el.importOk.disabled = true;
+    Promise.resolve(a.ImportModels(paths, mm, el.importMove.checked, el.importAllowDup.checked))
+      .then((rep) => {
+        const items = (rep && rep.items) || [];
+        const count = (st) => items.filter((it) => it.status === st).length;
+        const ok = count("imported"), dup = count("duplicate"), failed = items.length - ok - dup;
+        const parts = [];
+        if (ok) parts.push(ok + " imported");
+        if (dup) parts.push(dup + " already in the library");
+        if (failed) parts.push(failed + " failed");
+        const summary = parts.join(", ") || "nothing imported";
+        if (!failed) {
+          el.importModelPath.value = "";
+          closeImport();
+          toast(summary, ok ? "ok" : "");
+          return;
+        }
+        el.importMsg.textContent = summary;
+        renderImportRows(items.map((it) => ({
+          path: it.source,
+          state: it.status,
+          note: it.status === "imported" ? "imported as " + it.alias : it.message || it.status,
+        })));
+      })
+      .catch((err) => {
+        el.importMsg.textContent = err && err.message ? err.message : String(err);
+      })
+      .finally(() => { el.importOk.disabled = false; });
+  }
+
   function render() {
     if (!snap) return;
     renderDownloadBadge();
@@ -828,6 +1251,15 @@
     renderStatusBar();
     renderConfigPath();
     fillForm();
+    renderValidation();
+    renderCharts();
+    renderBenchmarks();
+    // Path fields belong to the llama.cpp tab; never overwrite what the user
+    // is typing.
+    if (!pathsDirty && document.activeElement !== el.pathBin) el.pathBin.value = snap.serverBin || "";
+    if (!pathsDirty && document.activeElement !== el.pathModels) el.pathModels.value = snap.modelsDir || "";
+    el.pathBin.title = snap.serverBin || "";
+    el.pathModels.title = snap.modelsDir || "";
     el.cmdline.textContent = snap.commandLine || "";
     el.cmdline.title = `${snap.commandLine || ""} — preview only, never executed`;
     el.vramEstimate.textContent = snap.vramEstimate || "";
@@ -835,10 +1267,12 @@
     if (snap.warning) {
       el.warnBanner.textContent = "⚠ " + snap.warning;
       el.warnBanner.classList.remove("hidden");
+      if (snap.warning !== lastWarn) toast(snap.warning, "warn");
     } else {
       el.warnBanner.textContent = "";
       el.warnBanner.classList.add("hidden");
     }
+    lastWarn = snap.warning || "";
     renderDoctor();
     renderDownload();
     el.firstRun.hidden = !snap.firstRun;
@@ -903,12 +1337,31 @@
     ctxMenu.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + "px";
   }
 
+  function copyText(text) {
+    if (!navigator.clipboard) { toast("clipboard unavailable", "warn"); return; }
+    navigator.clipboard.writeText(text).then(() => toast("copied", "ok"), () => toast("could not copy", "error"));
+  }
+
+  function deleteModel(model) {
+    if (!window.confirm(`Delete the model file?\n\n${model.display}\n${model.path}\n\nThe .gguf file is removed from disk; its preset file is kept.`)) return;
+    libCall("DeleteModel", model.path)
+      .then(() => toast("model deleted", "ok"))
+      .catch(() => {});
+  }
+
   function openModelMenu(x, y, model) {
     const categorized = model.category && model.category.length > 0;
     showCtxMenu(x, y, [
+      { label: "Details…", run: () => openModelDetails(model) },
+      { label: model.favorite ? "Unpin favorite" : "Pin favorite", run: () => libCall("SetModelFavorite", model.path, !model.favorite).catch(() => {}) },
+      { label: "Copy path", run: () => copyText(model.path) },
+      { label: "Reveal in file manager", run: () => call("RevealModel", model.path) },
+      "-",
       { label: "Rename…", run: () => renameModelDialog(model) },
       { label: "Move to category…", run: () => moveModelDialog(model) },
       { label: "Remove from category", disabled: !categorized, run: () => libCall("SetModelCategory", model.path, []) },
+      "-",
+      { label: "Delete model file…", danger: true, run: () => deleteModel(model) },
     ]);
   }
 
@@ -932,6 +1385,7 @@
     return Promise.resolve(app()[method](...args)).catch((err) => {
       const msg = err && err.message ? err.message : String(err);
       appendLog("error: " + msg);
+      toast(msg, "error");
       throw new Error(msg);
     });
   }
@@ -1080,11 +1534,51 @@
     call("RemovePreset", snap.alias, name);
   }
 
+  function duplicatePresetDialog() {
+    const old = currentPresetName();
+    if (!old) return;
+    openEdit({
+      title: "Duplicate preset",
+      text: `${(snap && snap.alias) || ""} › ${old}`,
+      submit: "Create",
+      fields: [{ key: "name", label: "New preset name", value: old + " copy" }],
+      onSubmit: (v) => {
+        const name = v.name.trim();
+        if (!name) return Promise.reject(new Error("Enter a preset name."));
+        return libCall("SavePresetAs", name);
+      },
+    });
+  }
+
+  function resetPreset() {
+    const name = currentPresetName();
+    if (!name) return;
+    if (!window.confirm(`Reset the preset "${name}" to the auto-fitted model default?\n\nThe current values in this preset are overwritten.`)) return;
+    libCall("ResetPreset", name).then(() => toast("preset reset", "ok")).catch(() => {});
+  }
+
+  function exportPresets() {
+    const a = app();
+    if (!a) return;
+    Promise.resolve(a.ExportPresets()).then((data) => {
+      const blob = new Blob([data], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = ((snap && snap.alias) || "llamaherd") + "-presets.json";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      toast("presets exported", "ok");
+    }).catch((err) => toast(err && err.message ? err.message : String(err), "error"));
+  }
+
   function openPresetMenu(x, y) {
     const names = (snap && snap.presetNames) || [];
     showCtxMenu(x, y, [
       { label: "New preset…", run: newPresetDialog },
+      { label: "Duplicate preset…", run: duplicatePresetDialog },
       { label: "Rename preset…", run: renamePresetDialog },
+      { label: "Reset to model default", run: resetPreset },
+      { label: "Export presets…", run: exportPresets },
       { label: "Discard unsaved changes", disabled: !snap.dirty, run: () => call("SelectPreset", currentPresetName()) },
       "-",
       { label: "Delete preset", danger: true, disabled: names.length <= 1, run: deletePreset },
@@ -1171,15 +1665,276 @@
     }).catch(() => {});
   }
 
+  // ---- validation: inline form findings from the snapshot ----
+
+  function fieldNode(key) {
+    return Array.from(document.querySelectorAll("[data-key]")).find((n) => n.dataset.key === key) || null;
+  }
+
+  function renderValidation() {
+    const issues = (snap && snap.validation) || [];
+    document.querySelectorAll(".field.invalid, .field.warn").forEach((f) => f.classList.remove("invalid", "warn"));
+    el.validation.innerHTML = "";
+    if (!issues.length) {
+      el.validation.hidden = true;
+      return;
+    }
+    el.validation.hidden = false;
+    const rank = { warn: 1, error: 2 };
+    const perField = {};
+    issues.forEach((is) => {
+      const item = document.createElement("div");
+      item.className = "validation-item " + (is.severity || "warn");
+      item.textContent = (is.severity === "error" ? "Error: " : "Warning: ") + is.message;
+      item.addEventListener("click", () => {
+        const node = fieldNode(is.field);
+        if (node) {
+          node.scrollIntoView({ block: "center", behavior: "smooth" });
+          node.focus();
+        }
+      });
+      el.validation.appendChild(item);
+      if (is.field && (!perField[is.field] || rank[is.severity] > rank[perField[is.field]])) {
+        perField[is.field] = is.severity;
+      }
+    });
+    Object.entries(perField).forEach(([key, sev]) => {
+      const node = fieldNode(key);
+      const field = node && node.closest(".field");
+      if (field) field.classList.add(sev === "error" ? "invalid" : "warn");
+    });
+  }
+
+  // ---- performance charts ----
+
+  function fmtMB(mb) {
+    const n = Number(mb) || 0;
+    if (n <= 0) return "—";
+    return n < 1024 ? n + " MB" : (n / 1024).toFixed(1) + " GB";
+  }
+
+  function drawChart(canvas, values, color) {
+    if (!canvas) return;
+    const cssW = Math.max(80, canvas.clientWidth || 160);
+    const cssH = 46;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    const pts = values.filter((v) => Number.isFinite(v));
+    if (pts.length < 2) {
+      ctx.strokeStyle = "rgba(127,127,127,0.25)";
+      ctx.beginPath();
+      ctx.moveTo(0, cssH - 1);
+      ctx.lineTo(cssW, cssH - 1);
+      ctx.stroke();
+      return;
+    }
+    let min = Math.min(...pts);
+    let max = Math.max(...pts);
+    if (max - min < 1e-6) max = min + 1;
+    const pad = 4;
+    const x = (i) => (i / (pts.length - 1)) * cssW;
+    const y = (v) => cssH - pad - ((v - min) / (max - min)) * (cssH - pad * 2);
+    ctx.beginPath();
+    pts.forEach((v, i) => { if (i === 0) ctx.moveTo(x(i), y(v)); else ctx.lineTo(x(i), y(v)); });
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    ctx.lineTo(x(pts.length - 1), cssH);
+    ctx.lineTo(x(0), cssH);
+    ctx.closePath();
+    ctx.fillStyle = color.startsWith("#") ? color + "22"
+      : color.replace("rgb(", "rgba(").replace(")", ", 0.12)");
+    ctx.fill();
+  }
+
+  function renderCharts() {
+    const pts = (snap && snap.metrics) || [];
+    const last = pts.length ? pts[pts.length - 1] : {};
+    el.chartVramVal.textContent = fmtMB(last.vramMB);
+    el.chartRamVal.textContent = fmtMB(last.ramMB);
+    el.chartSpeedVal.textContent = last.tokPerSec > 0 ? last.tokPerSec.toFixed(1) + " tok/s" : "—";
+    const style = getComputedStyle(document.documentElement);
+    const accent = style.getPropertyValue("--accent").trim() || "#ef6a2d";
+    const green = style.getPropertyValue("--green").trim() || "#16a34a";
+    const amber = style.getPropertyValue("--amber").trim() || "#c27803";
+    drawChart(el.chartVram, pts.map((p) => p.vramMB), accent);
+    drawChart(el.chartRam, pts.map((p) => p.ramMB), green);
+    drawChart(el.chartSpeed, pts.map((p) => p.tokPerSec), amber);
+    if (!pts.length) {
+      el.metricsHint.textContent = "collecting — start the server";
+      return;
+    }
+    const gpu = [];
+    if (last.gpuUtil > 0) gpu.push("GPU " + last.gpuUtil + "%");
+    if (last.gpuTemp > 0) gpu.push(last.gpuTemp + "°C");
+    el.metricsHint.textContent = `${pts.length} samples · last 10 min` + (gpu.length ? " · " + gpu.join(" · ") : "");
+  }
+
+  // ---- benchmark table ----
+
+  function fmtWhen(sec) {
+    if (!sec) return "—";
+    const d = new Date(sec * 1000);
+    const diff = Date.now() - d.getTime();
+    if (diff < 60000) return "just now";
+    if (diff < 3600000) return Math.round(diff / 60000) + " min ago";
+    if (diff < 86400000) return Math.round(diff / 3600000) + " h ago";
+    return d.toLocaleDateString();
+  }
+
+  function renderBenchmarks() {
+    const rows = ((snap && snap.benchmarks) || []).slice()
+      .sort((a, b) => (b.genTokPerSec || 0) - (a.genTokPerSec || 0));
+    el.benchTable.hidden = rows.length === 0;
+    el.benchEmpty.hidden = rows.length > 0;
+    el.benchBody.innerHTML = "";
+    const curPreset = currentPresetName();
+    const model = selectedModel();
+    rows.forEach((b, i) => {
+      const tr = document.createElement("tr");
+      const samePreset = !!(model && b.modelId === model.id && b.preset === curPreset);
+      const current = samePreset && b.fingerprint === snap.configFingerprint;
+      const stale = samePreset && b.fingerprint !== snap.configFingerprint;
+      if (current) tr.className = "current";
+      if (stale) tr.className = "stale";
+
+      const td = (text, cls) => {
+        const c = document.createElement("td");
+        c.textContent = text;
+        if (cls) c.className = cls;
+        tr.appendChild(c);
+        return c;
+      };
+      const m = td(b.model || b.alias || "—", "bench-model");
+      m.title = b.alias || "";
+      const cfgCell = td(b.preset || "—");
+      if (b.fingerprint) {
+        const fp = document.createElement("code");
+        fp.className = "bench-fp";
+        fp.textContent = " #" + b.fingerprint.slice(0, 6);
+        fp.title = "config fingerprint " + b.fingerprint;
+        cfgCell.appendChild(fp);
+      }
+      td(String(b.context || "—"), "num");
+      td(b.gpuLayers || "—", "num");
+      td((b.genTokPerSec || 0).toFixed(1), "num" + (i === 0 ? " best" : ""));
+      td((b.promptTokPerSec || 0).toFixed(1), "num");
+      td(fmtMB(b.peakVramMB), "num");
+      td(fmtWhen(b.at));
+      const st = td("");
+      if (current) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = "current";
+        st.appendChild(chip);
+      } else if (stale) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = "config edited";
+        chip.title = "Stored for an older version of this config; re-run to compare.";
+        st.appendChild(chip);
+      } else if (i === 0) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = "fastest";
+        st.appendChild(chip);
+      }
+      el.benchBody.appendChild(tr);
+    });
+    const hint = snap.benchmarking
+      ? "running — fixed prompt, 128 tokens…"
+      : `${rows.length} result(s) · fastest first`;
+    el.benchHint.textContent = hint;
+    el.benchRun.disabled = snap.status !== "running" || snap.benchmarking;
+    el.benchRun.textContent = snap.benchmarking ? "Benchmarking…" : "Benchmark";
+    el.benchRun.title = snap.status !== "running"
+      ? "Start a server first: the benchmark measures the loaded model + config"
+      : "Measure the LOADED model and config with a fixed prompt";
+  }
+
+  function runBenchmark() {
+    const a = app();
+    if (!a) return;
+    el.benchRun.disabled = true;
+    el.benchHint.textContent = "running — fixed prompt, 128 tokens…";
+    Promise.resolve(a.RunBenchmark())
+      .then((b) => toast(`${b.model} [${b.preset}]: ${(b.genTokPerSec || 0).toFixed(1)} tok/s`, "ok"))
+      .catch((err) => toast(err && err.message ? err.message : String(err), "error"))
+      .finally(() => { if (snap) renderBenchmarks(); });
+  }
+
+  function clearBenchmarks() {
+    if (!window.confirm("Delete every stored benchmark result?")) return;
+    libCall("ClearBenchmarks").then(() => { renderBenchmarks(); toast("benchmarks cleared", "ok"); }).catch(() => {});
+  }
+
+  // ---- model details ----
+
+  let detailsModel = null;
+
+  function detailRow(k, v) {
+    if (v === "" || v === undefined || v === null) v = "—";
+    const kd = document.createElement("div");
+    kd.className = "k";
+    kd.textContent = k;
+    const vd = document.createElement("div");
+    vd.className = "v";
+    vd.textContent = v;
+    el.detailsBody.appendChild(kd);
+    el.detailsBody.appendChild(vd);
+  }
+
+  function openModelDetails(model) {
+    detailsModel = model;
+    el.detailsTitle.textContent = model.display || model.path || "Model details";
+    el.detailsBody.innerHTML = "";
+    el.detailsMsg.textContent = "";
+    const cat = (model.category || []).join(" › ");
+    detailRow("Alias", model.alias);
+    detailRow("Quant", model.quant);
+    detailRow("Architecture", model.arch);
+    detailRow("Layers", model.layers ? String(model.layers) : "");
+    detailRow("Full-attention layers", model.fullAttnLayers ? String(model.fullAttnLayers) : "");
+    detailRow("Trained context", model.trainedContext ? model.trainedContext.toLocaleString() + " tokens" : "");
+    detailRow("File size", model.fileSize ? fmtBytes(model.fileSize) : "");
+    detailRow("Category", cat);
+    detailRow("Vision projector", model.mmproj);
+    detailRow("MTP", model.mtp ? "embedded head" : (model.mtpDraft ? "draft sidecar" : ""));
+    detailRow("Source", model.source || "local file");
+    const p = model.provenance;
+    if (p) {
+      detailRow("Repository", p.repo);
+      detailRow("Licence", p.license ? p.license + (p.licenseName ? " (" + p.licenseName + ")" : "") : "");
+    }
+    el.detailsOpenSource.hidden = !(p && p.url);
+    detailRow("Last used", model.lastUsed ? new Date(model.lastUsed * 1000).toLocaleString() : "never");
+    detailRow("Path", model.path);
+    el.detailsModal.hidden = false;
+  }
+
+  function closeDetails() {
+    el.detailsModal.hidden = true;
+    detailsModel = null;
+  }
+
   // ---- VRAM bar: parses the "(85%)" part of the estimate text ----
 
   function renderVramBar(text) {
-    const m = /\((\d+)%\)/.exec(text);
+    const fallback = /\((\d+)%\)/.exec(text);
+    const pct = snap && typeof snap.vramPercent === "number"
+      ? snap.vramPercent
+      : (fallback ? parseInt(fallback[1], 10) : 0);
     const fill = $("vramFill");
-    const pct = m ? Math.min(100, parseInt(m[1], 10)) : 0;
-    fill.style.width = pct + "%";
-    fill.className = pct >= 90 ? "bad" : pct >= 75 ? "warn" : "";
-    $("vramBar").style.visibility = m ? "visible" : "hidden";
+    const clamped = Math.max(0, Math.min(100, pct));
+    fill.style.width = clamped + "%";
+    fill.className = !(snap ? snap.vramFits : true) || clamped >= 90 ? "bad" : clamped >= 75 ? "warn" : "";
+    $("vramBar").style.visibility = pct > 0 ? "visible" : "hidden";
   }
 
   // ---- theme: auto (system) -> light -> dark ----
@@ -1240,7 +1995,8 @@
     const srv = snap.server || {};
     const status = snap.status || "stopped";
     const parts = [];
-    parts.push(status === "running" && srv.model && srv.model !== "—" ? `running: ${srv.model}` : status);
+    parts.push(status === "running" && srv.model && srv.model !== "—" ? `running: ${srv.model}`
+      : status === "failed" ? "not responding" : status);
     parts.push(`model: ${m ? m.display : "—"}`);
     parts.push(`preset: ${(snap.presetNames || [])[snap.selectedPreset] || "—"}${snap.dirty ? "*" : ""}`);
     parts.push(`ctx ${b.context || "—"}`);
@@ -1329,6 +2085,93 @@
     el.llamaCheck.disabled = p.updating;
   }
 
+  // ---- native pickers, shortcuts and focus trap ----
+
+  function pickInto(method, input, ...args) {
+    const a = app();
+    if (!a || typeof a[method] !== "function") return;
+    Promise.resolve(a[method](...args)).then((p) => {
+      if (p) {
+        input.value = p;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }).catch((err) => toast(err && err.message ? err.message : String(err), "error"));
+  }
+
+  function detectServerBin(input, msgEl) {
+    const a = app();
+    if (!a) return;
+    if (msgEl) msgEl.textContent = "Searching PATH and common build locations…";
+    Promise.resolve(a.DetectServerBin()).then((r) => {
+      input.value = r.path;
+      if (input === el.pathBin) pathsDirty = true;
+      if (msgEl) msgEl.textContent = "found " + r.version;
+      toast("llama-server: " + r.version, "ok");
+    }).catch((err) => {
+      const msg = err && err.message ? err.message : String(err);
+      if (msgEl) msgEl.textContent = msg;
+      toast(msg, "error");
+    });
+  }
+
+  function savePaths() {
+    const a = app();
+    if (!a) return;
+    el.pathMsg.textContent = "";
+    Promise.resolve(a.SetPaths(el.pathBin.value.trim(), el.pathModels.value.trim()))
+      .then(() => { el.pathMsg.textContent = "saved"; pathsDirty = false; toast("paths saved", "ok"); })
+      .catch((err) => {
+        const msg = err && err.message ? err.message : String(err);
+        el.pathMsg.textContent = "error: " + msg;
+        toast(msg, "error");
+      });
+  }
+
+  function visibleModal() {
+    return Array.from(document.querySelectorAll(".modal")).find((m) => !m.hidden) || null;
+  }
+
+  function trapFocus(e) {
+    const modal = visibleModal();
+    if (!modal) return;
+    const nodes = Array.from(modal.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+    )).filter((n) => n.offsetParent !== null);
+    if (!nodes.length) return;
+    const first = nodes[0], last = nodes[nodes.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  function wireShortcuts() {
+    document.addEventListener("keydown", (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        call("SaveConfig");
+        return;
+      }
+      if (mod && e.key === "Enter") {
+        e.preventDefault();
+        if (snap && (snap.status === "running" || snap.status === "starting")) call("RestartServer");
+        else call("StartServer");
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        el.modelSearch.focus();
+        el.modelSearch.select();
+        return;
+      }
+      if (e.key === "Tab") trapFocus(e);
+    });
+  }
+
   // ---- boot ----
 
   function onState(next) {
@@ -1345,9 +2188,19 @@
     }
 
     wireForm();
+    wireLogs();
+    wireShortcuts();
     initLogsCollapse();
     initTheme();
 
+    el.modelSearch.addEventListener("input", () => { modelQuery = el.modelSearch.value; renderModels(); });
+    el.modelFilter.addEventListener("change", () => { modelFilter = el.modelFilter.value; renderModels(); });
+    el.rescanBtn.addEventListener("click", () => {
+      const a = app();
+      if (!a) return;
+      Promise.resolve(a.RescanModels()).then(() => toast("models rescanned", "ok"))
+        .catch((err) => toast(err && err.message ? err.message : String(err), "error"));
+    });
     $("newCatBtn").addEventListener("click", () => newFolderDialog(browsePath || []));
     el.presetSel.addEventListener("change", () => {
       if (el.presetSel.value === NEW_PRESET) {
@@ -1364,6 +2217,38 @@
     el.loadBtn.addEventListener("click", () => call("LoadConfig"));
     el.startBtn.addEventListener("click", () => call("StartServer"));
     el.stopBtn.addEventListener("click", () => call("StopServer"));
+    el.restartBtn.addEventListener("click", () => call("RestartServer"));
+    el.chatBtn.addEventListener("click", () => call("OpenChat"));
+    el.pathBinBrowse.addEventListener("click", () => pickInto("PickServerBinary", el.pathBin));
+    el.pathBinDetect.addEventListener("click", () => detectServerBin(el.pathBin, el.pathMsg));
+    el.frBinDetect.addEventListener("click", () => detectServerBin(el.frBin, el.frMsg));
+    el.diagCopy.addEventListener("click", () => {
+      const a = app();
+      if (!a) return;
+      Promise.resolve(a.DiagnosticsText())
+        .then((txt) => copyText(txt))
+        .catch((err) => toast(err && err.message ? err.message : String(err), "error"));
+    });
+    el.pathModelsBrowse.addEventListener("click", () => pickInto("PickModelsDir", el.pathModels));
+    el.pathBin.addEventListener("input", () => { pathsDirty = true; });
+    el.pathModels.addEventListener("input", () => { pathsDirty = true; });
+    el.pathSave.addEventListener("click", savePaths);
+    el.autoFitBtn.addEventListener("click", () => {
+      const a = app();
+      if (!a) return;
+      Promise.resolve(a.AutoFitConfig()).then((msg) => toast(msg, "ok"))
+        .catch((err) => toast(err && err.message ? err.message : String(err), "error"));
+    });
+    el.detailsClose.addEventListener("click", closeDetails);
+    el.detailsModal.addEventListener("mousedown", (e) => { if (e.target === el.detailsModal) closeDetails(); });
+    el.detailsOpenSource.addEventListener("click", () => { if (detailsModel) call("OpenModelSource", detailsModel.alias); });
+    el.detailsCopy.addEventListener("click", () => {
+      if (detailsModel) copyText(detailsModel.path);
+    });
+    el.frBinBrowse.addEventListener("click", () => pickInto("PickServerBinary", el.frBin));
+    el.frModelsBrowse.addEventListener("click", () => pickInto("PickModelsDir", el.frModels));
+    $("mmprojBrowse").addEventListener("click", () => pickInto("PickModelFile", $("f-mmproj"), "Choose a vision projector (.gguf)"));
+    $("draftModelBrowse").addEventListener("click", () => pickInto("PickModelFile", $("f-draftModel"), "Choose a draft model (.gguf)"));
     el.frSave.addEventListener("click", () => {
       const a = app();
       if (!a) return;
@@ -1378,12 +2263,25 @@
     el.llamaRefresh.addEventListener("click", () => refreshLlama());
     el.doctorRefresh.addEventListener("click", () => call("RunDoctor"));
     el.dlOpen.addEventListener("click", openDownload);
+    el.importOpen.addEventListener("click", () => openImport());
+    el.importModelBrowse.addEventListener("click", pickImportFiles);
+    el.importModelPath.addEventListener("change", checkImport);
+    el.importMMProjBrowse.addEventListener("click", () => pickInto("PickModelFile", el.importMMProjPath, "Choose the vision projector (.gguf)"));
+    el.importHasMMProj.addEventListener("change", toggleImportMMProj);
+    el.importCancel.addEventListener("click", closeImport);
+    el.importOk.addEventListener("click", doImport);
+    el.importModal.addEventListener("mousedown", (e) => { if (e.target === el.importModal) closeImport(); });
+    el.benchRun.addEventListener("click", runBenchmark);
+    el.benchClear.addEventListener("click", clearBenchmarks);
+    el.procRetry.addEventListener("click", () => call("RestartServer"));
+    el.procStop.addEventListener("click", () => call("StopServer"));
     el.dlClose.addEventListener("click", () => { el.dlModal.hidden = true; });
     el.dlBrowse.addEventListener("click", openFullCatalog);
     el.catClose.addEventListener("click", () => { el.catModal.hidden = true; });
     el.catModal.addEventListener("mousedown", (e) => { if (e.target === el.catModal) el.catModal.hidden = true; });
     el.dlBadge.addEventListener("click", openDownload);
     el.dlFind.addEventListener("click", findRepoFiles);
+    el.dlGatedOpen.addEventListener("click", () => { if (lastRepo) call("OpenRepoPage", lastRepo); });
     el.dlRef.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); findRepoFiles(); } });
     // Pasting a link looks it up right away.
     el.dlRef.addEventListener("paste", () => setTimeout(() => { if (el.dlRef.value.includes("/")) findRepoFiles(); }, 0));
@@ -1418,6 +2316,7 @@
       rt.EventsOn("state", onState);
       rt.EventsOn("log", (line) => appendLog(line));
     }
+    if (rt && rt.OnFileDrop) rt.OnFileDrop(onFilesDropped, true);
 
     // Boot state via GetState; if an event snapshot already arrived first,
     // the stale GetState result is discarded.
@@ -1431,6 +2330,10 @@
         appendLog(`error: ${err && err.message ? err.message : err}`)
       );
   }
+
+  window.addEventListener("resize", () => {
+    if (snap) renderCharts();
+  });
 
   setInterval(() => {
     if (snap && snap.status === "running") {

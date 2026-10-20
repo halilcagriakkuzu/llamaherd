@@ -193,6 +193,45 @@ func TestConfigsDirAndLibraryDir(t *testing.T) {
 	}
 }
 
+func TestEnsureAPITokenGeneratesAndOff(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	t.Setenv(EnvConfig, path)
+	t.Setenv(EnvAPIToken, "")
+	Reload()
+	t.Cleanup(Reload)
+
+	// No config file yet: generation waits until setup has written one.
+	if gen, err := EnsureAPIToken(); err != nil || gen {
+		t.Fatalf("EnsureAPIToken without config = %v, %v", gen, err)
+	}
+	if err := os.WriteFile(path, []byte("{\"modelsDir\":\"/models\"}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	Reload()
+	gen, err := EnsureAPIToken()
+	if err != nil || !gen {
+		t.Fatalf("EnsureAPIToken = %v, %v", gen, err)
+	}
+	if tok := APIToken(); len(tok) < 32 {
+		t.Fatalf("generated token too short: %q", tok)
+	}
+	if gen, _ := EnsureAPIToken(); gen {
+		t.Error("a second call must not rotate the token")
+	}
+
+	if err := os.WriteFile(path, []byte("{\"apiToken\":\"off\"}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	Reload()
+	if tok := APIToken(); tok != "" {
+		t.Errorf("apiToken off = %q, want empty", tok)
+	}
+	if gen, _ := EnsureAPIToken(); gen {
+		t.Error("apiToken off must not generate a token")
+	}
+}
+
 func TestResolveModelPath(t *testing.T) {
 	isolate(t)
 	md := t.TempDir()

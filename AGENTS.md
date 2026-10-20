@@ -56,6 +56,9 @@ OS-specific code is split with build tags (`control/proc_*.go`, `doctor/disk_*.g
 
 ## Conventions
 
+- **Name and path:** the project is **`LlamaHerd`** — two Ls, capital `H`. The working
+  directory is the repository root (e.g. `<workspace>/LlamaHerd`). Never look for or create a
+  `LamaHerd` (one L) directory or file path; that is a recurring typo that makes tool calls fail.
 - **One controller.** State changes go through `App` methods so the GUI, CLI and API
   never diverge. A new capability usually means: an `App` method → an `api.Control`
   method + endpoint (+ test with the fake in `api/api_test.go`) → a CLI subcommand →

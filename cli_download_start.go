@@ -33,11 +33,11 @@ func ensureDaemon() error {
 	if _, _, err := get("/status"); err == nil {
 		return nil
 	}
-	fmt.Fprintln(os.Stderr, "download: control API not reachable, starting headless daemon...")
+	fmt.Fprintln(os.Stderr, "ctl: control API not reachable, starting headless daemon...")
 	cmd := exec.Command(daemonSelf(), "daemon")
 	cmd.SysProcAttr = daemonSysProcAttr()
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintln(os.Stderr, "download: cannot start daemon:", err)
+		fmt.Fprintln(os.Stderr, "ctl: cannot start daemon:", err)
 	}
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {

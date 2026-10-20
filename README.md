@@ -14,14 +14,37 @@ you the GUI, a CLI and a local control API for scripts and AI agents.
 
 ## Features
 
-- Model browser with nested categories (rename, move, create folders from the UI/CLI/API).
+- Model browser with nested categories (rename, move, create folders from the UI/CLI/API),
+  search/filter, favorites and rescan.
 - Download from Hugging Face: hardware-scored catalog, resumable, sha256-verified; vision
-  and MTP sidecars detected.
-- Config form for the common `llama-server` flags, per-model presets as plain JSON.
-- Start/stop, crash detection, live VRAM/RAM, average tokens/s.
+  and MTP sidecars detected; installed badge and free-disk readout.
+- Import local `.gguf` files or folders (button or drag-and-drop; optionally pairing a vision
+  projector) with duplicate detection, and create fitted presets.
+- Licence-aware downloads: the repo's licence is shown before downloading, gated repositories
+  explain how to get access, and the downloaded model keeps its repo/licence in the details.
+- Config form for the common `llama-server` flags, per-model presets as plain JSON
+  (duplicate/reset/export), auto-fitted context and GPU layers, inline validation and a
+  live VRAM budget.
+- Start/stop/restart, crash detection (with the server log tail and Retry/Stop), live
+  VRAM/RAM, average tokens/s and 10-minute performance charts.
+- Benchmark the loaded model + config with a fixed prompt; results are stored per config
+  fingerprint and shown in a fastest-first table.
+- One-click **Open chat** launches llama-server's built-in web UI; a model-details panel
+  shows architecture, quant, trained context, sidecars and provenance.
 - **VRAM pre-flight guard**: refuses a start predicted to exceed 90 % of GPU memory.
 - One-click llama.cpp update/rebuild, environment check (`llamaherd doctor`).
 - Light/dark UI; Linux, Windows 11 (native or WSL), macOS.
+- Loopback API hardened against cross-origin and DNS-rebinding requests; token generated
+  on first setup.
+- **No telemetry.** The only outbound requests are model downloads you start, a metadata-only
+  catalog refresh and an update/rebuild you press. See [security and privacy](docs/security.md).
+
+### Privacy
+
+LlamaHerd collects nothing: no analytics, no crash reporting, no account. The app only talks
+to `huggingface.co` for repos/downloads, `raw.githubusercontent.com` for the model catalog,
+and GitHub when you explicitly update llama.cpp. Catalog refresh can be disabled with
+`LLAMAHERD_CATALOG_URL=off`; local import and the rest of the app work fully offline.
 
 ## Install
 
@@ -44,10 +67,12 @@ llamaherd status | stop
 llamaherd download list        # models that fit this machine
 ```
 
-The same actions are available over HTTP on `127.0.0.1:8517`:
+The same actions are available over HTTP on `127.0.0.1:8517`. The API is token-protected by
+default (see `apiToken` in your config, or set `LLAMAHERD_API_TOKEN`; `"off"` disables it):
 
 ```bash
-curl -s 127.0.0.1:8517/status | jq '.status, .server.tokPerSec'
+curl -s -H "Authorization: Bearer $LLAMAHERD_API_TOKEN" \
+  127.0.0.1:8517/status | jq '.status, .server.tokPerSec'
 ```
 
 ## Documentation
@@ -57,6 +82,7 @@ curl -s 127.0.0.1:8517/status | jq '.status, .server.tokPerSec'
 | [Quickstart](QUICKSTART.md) | install → first model in five minutes |
 | [Installation](docs/installation.md) | installer options, build from source, releases |
 | [Configuration](docs/configuration.md) | config file, env vars, presets, library, HF token |
+| [Security and privacy](docs/security.md) | API threat model, outbound hosts, offline use |
 | [CLI and API](docs/cli-and-api.md) | every subcommand and endpoint |
 | [Windows and WSL](docs/windows-and-wsl.md) | three Windows setups, platform limits |
 | [VRAM guard](docs/vram-guard.md) | how the estimate works |

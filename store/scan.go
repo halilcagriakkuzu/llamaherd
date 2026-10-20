@@ -4,11 +4,14 @@
 package store
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -91,11 +94,17 @@ func SaveAlias(dir string, alias string, presets []schema.Preset) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(AliasFile{Alias: alias, Presets: portablePresetPaths(presets)}, "", "  ")
+	data, err := AliasJSON(alias, presets)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(aliasPath(dir, alias), append(data, '\n'), 0o644)
+}
+
+// AliasJSON renders the portable (models-dir-relative) preset file for export
+// and for SaveAlias.
+func AliasJSON(alias string, presets []schema.Preset) ([]byte, error) {
+	return json.MarshalIndent(AliasFile{Alias: alias, Presets: portablePresetPaths(presets)}, "", "  ")
 }
 
 // ScanModels walks root recursively and returns one entry per loadable *.gguf.
@@ -147,6 +156,68 @@ func DerivedAlias(modelPath string) string {
 	return strings.ReplaceAll(lower, ".", "-")
 }
 
+// UniqueIDs returns one stable library/config id per model. Non-colliding files
+// keep the historical file-derived alias. When two files share a base name the
+// lexicographically first path keeps it and the rest get a short path hash;
+// this prevents two models from silently sharing configs/<alias>.json.
+func UniqueIDs(models []schema.Model) []string {
+	groups := map[string][]int{}
+	for i, m := range models {
+		base := DerivedAlias(m.Path)
+		groups[base] = append(groups[base], i)
+	}
+	ids := make([]string, len(models))
+	for base, idxs := range groups {
+		paths := append([]int(nil), idxs...)
+		sort.Slice(paths, func(i, j int) bool { return models[paths[i]].Path < models[paths[j]].Path })
+		for rank, i := range paths {
+			if rank == 0 {
+				ids[i] = base
+				continue
+			}
+			ids[i] = base + "-" + shortPathHash(filepath.Dir(models[i].Path))
+		}
+	}
+	return ids
+}
+
+// UniqueIDFor returns the id a new model at path will have once it is part of
+// others. It lets the downloader persist the same id the next scan will assign.
+func UniqueIDFor(path string, others []schema.Model) string {
+	models := make([]schema.Model, 0, len(others)+1)
+	found := false
+	for _, m := range others {
+		if m.Path == path {
+			found = true
+		}
+		models = append(models, m)
+	}
+	if !found {
+		models = append(models, schema.Model{Path: path})
+	}
+	ids := UniqueIDs(models)
+	for i, m := range models {
+		if m.Path == path {
+			return ids[i]
+		}
+	}
+	return DerivedAlias(path)
+}
+
+// shortPathHash is a 6-hex-digit, path-stable disambiguator for duplicate base
+// names. It only changes when the directory moves.
+func shortPathHash(dir string) string {
+	sum := sha256.Sum256([]byte(filepath.Clean(dir)))
+	return hex.EncodeToString(sum[:3])
+}
+
+// IsSidecarFile reports whether a .gguf looks like a support file (mmproj or an
+// MTP draft) rather than a loadable model.
+func IsSidecarFile(path string) bool {
+	b := strings.ToLower(filepath.Base(path))
+	return strings.Contains(b, "mmproj") || isMTPSidecar(b)
+}
+
 // isMTPSidecar reports whether a file name looks like a separate MTP draft
 // sidecar (e.g. HauhauCS "fastmtp*.gguf"). These are draft models for
 // --spec-draft-model, never loadable target models.
@@ -170,4 +241,18 @@ func display(base string) string {
 		return base
 	}
 	return base[:16] + "-...-" + base[len(base)-18:]
+}
+
+// quantRe recognises the common GGUF quant labels in a file name.
+var quantRe = regexp.MustCompile(`(?i)(IQ\d+_[A-Z0-9_]+|Q\d+_K_[A-Z]+|Q\d+_\d+|Q\d+_K|Q\d+_0|BF16|F32|F16)`)
+
+// QuantFromName extracts a quant label (Q4_K_M, UD-IQ4_XS, Q8_0, ...) from a
+// model file name, or "" when none is recognisable.
+func QuantFromName(path string) string {
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	base = strings.ReplaceAll(base, "-", "_")
+	if m := quantRe.FindStringSubmatch(base); m != nil {
+		return strings.ToUpper(m[1])
+	}
+	return ""
 }

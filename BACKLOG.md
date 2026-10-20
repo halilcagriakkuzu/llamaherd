@@ -2,6 +2,9 @@
 
 Open work only — finished items are removed (see `CHANGELOG.md` for what shipped).
 
+The medium-sized, ordered implementation plan for the next batch lives in
+[`TASKS.md`](TASKS.md).
+
 - [ ] **macOS runtime verification:** the binaries build and cross-compile, but nothing has
   run on a Mac yet — Start/Stop, `ForceStopLlama`, RSS/GPU rows, `doctor`, the GUI,
   `scripts/install.sh` and the `.app` bundle (Gatekeeper / notarization behaviour).

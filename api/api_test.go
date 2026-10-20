@@ -3,9 +3,11 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -22,9 +24,13 @@ type fake struct {
 
 func (f *fake) rec(s string) { f.calls = append(f.calls, s) }
 
-func (f *fake) SnapshotJSON() ([]byte, error)        { return []byte(`{"status":"stopped"}`), nil }
-func (f *fake) DoctorJSON() ([]byte, error)          { return []byte(`{"ok":true}`), nil }
-func (f *fake) DownloadJSON() ([]byte, error)        { return []byte(`{"active":false}`), nil }
+func (f *fake) SnapshotJSON() ([]byte, error) { return []byte(`{"status":"stopped"}`), nil }
+func (f *fake) DoctorJSON() ([]byte, error)   { return []byte(`{"ok":true}`), nil }
+func (f *fake) DownloadJSON() ([]byte, error) { return []byte(`{"active":false}`), nil }
+func (f *fake) LogsJSON(tail int, after int64) ([]byte, error) {
+	f.rec("logs:" + strconv.Itoa(tail) + ":" + strconv.FormatInt(after, 10))
+	return []byte(`{"lines":["hello"],"next":7,"enabled":true}`), nil
+}
 func (f *fake) CatalogJSON(all bool) ([]byte, error) { return []byte(`{"entries":[]}`), nil }
 func (f *fake) StartDownload(ref, file, vision, mtp string) error {
 	f.rec("download:" + ref + "|" + file + "|" + vision + "|" + mtp)
@@ -43,7 +49,34 @@ func (f *fake) Open(alias, preset string) error {
 	f.rec("open:" + alias + "/" + preset)
 	return f.openErr
 }
-func (f *fake) Stop() error { f.rec("stop"); return nil }
+func (f *fake) Stop() error          { f.rec("stop"); return nil }
+func (f *fake) RestartServer() error { f.rec("restart"); return nil }
+func (f *fake) RescanModels() error  { f.rec("rescan"); return nil }
+func (f *fake) ResetPreset(name string) error {
+	f.rec("reset:" + name)
+	return nil
+}
+func (f *fake) ExportPresets() (string, error) { return `{"alias":"a","presets":[]}`, nil }
+func (f *fake) AutoFitConfig() (string, error) { f.rec("autofit"); return "fitted", nil }
+func (f *fake) DeleteModel(ref string) error   { f.rec("delete:" + ref); return nil }
+func (f *fake) ImportModels(paths []string, mmproj string, move, allowDuplicate bool) (schema.ImportReport, error) {
+	f.rec(fmt.Sprintf("import:%s|%s|%v|%v", strings.Join(paths, ","), mmproj, move, allowDuplicate))
+	return schema.ImportReport{Items: []schema.ImportItem{{Source: paths[0], Status: "imported"}}}, nil
+}
+func (f *fake) CheckImport(paths []string) []schema.ImportCheck {
+	f.rec("check:" + strings.Join(paths, ","))
+	return []schema.ImportCheck{{Path: paths[0], Duplicate: true}}
+}
+func (f *fake) RunBenchmark() (schema.Benchmark, error) {
+	f.rec("bench")
+	return schema.Benchmark{Preset: "default", GenTokS: 42.5}, nil
+}
+func (f *fake) Benchmarks() []schema.Benchmark { return []schema.Benchmark{{Preset: "default"}} }
+func (f *fake) ClearBenchmarks() error         { f.rec("benchclear"); return nil }
+func (f *fake) SetModelFavorite(ref string, fav bool) error {
+	f.rec("favorite:" + ref)
+	return nil
+}
 func (f *fake) SaveConfig() { f.rec("save") }
 func (f *fake) LoadConfig() { f.rec("load") }
 func (f *fake) AddPreset(a, n string, c schema.Config) error {
@@ -84,6 +117,12 @@ func (f *fake) DeleteCategory(p []string) error {
 func do(t *testing.T, h http.Handler, method, url, body string, hdr map[string]string) (int, string) {
 	t.Helper()
 	req := httptest.NewRequest(method, url, strings.NewReader(body))
+	// The production handler only accepts loopback Host headers; httptest's
+	// default "example.com" is deliberately rejected by the new guard.
+	req.Host = "127.0.0.1:8517"
+	if method != http.MethodGet && method != http.MethodHead {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	for k, v := range hdr {
 		req.Header.Set(k, v)
 	}
@@ -111,6 +150,7 @@ func TestReadEndpoints(t *testing.T) {
 		"/catalog":         `"entries"`,
 		"/models":          `"alias":"a"`,
 		"/presets?alias=a": `"name":"default"`,
+		"/logs?tail=5":     `"lines":["hello"]`,
 	} {
 		code, body := do(t, h, "GET", path, "", nil)
 		if code != 200 || !strings.Contains(body, want) {
@@ -119,6 +159,12 @@ func TestReadEndpoints(t *testing.T) {
 	}
 	if code, _ := do(t, h, "GET", "/presets", "", nil); code != http.StatusBadRequest {
 		t.Errorf("/presets without alias = %d, want 400", code)
+	}
+	if code, _ := do(t, h, "GET", "/logs?tail=-1", "", nil); code != http.StatusBadRequest {
+		t.Errorf("/logs with negative tail = %d, want 400", code)
+	}
+	if code, _ := do(t, h, "GET", "/logs?after=x", "", nil); code != http.StatusBadRequest {
+		t.Errorf("/logs with bad after = %d, want 400", code)
 	}
 }
 
@@ -198,6 +244,75 @@ func TestBearerTokenAuth(t *testing.T) {
 	}
 	if code, _ := do(t, h, "GET", "/status?token=s3cret", "", nil); code != 200 {
 		t.Errorf("query token = %d, want 200", code)
+	}
+}
+
+func TestLoopbackGuards(t *testing.T) {
+	isolate(t)
+	h := Handler(&fake{})
+
+	// A DNS-rebinding style Host is rejected.
+	req := httptest.NewRequest("GET", "/status", nil)
+	req.Host = "evil.example"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("non-loopback host = %d, want 403", rec.Code)
+	}
+
+	// A cross-origin browser request is rejected even without a token.
+	if code, _ := do(t, h, "GET", "/status", "", map[string]string{"Origin": "https://evil.example"}); code != http.StatusForbidden {
+		t.Errorf("cross-origin = %d, want 403", code)
+	}
+	if code, _ := do(t, h, "GET", "/status", "", map[string]string{"Origin": "http://127.0.0.1:5173"}); code != 200 {
+		t.Errorf("loopback origin = %d, want 200", code)
+	}
+
+	// text/plain POSTs are the classic CSRF shape; require JSON.
+	req = httptest.NewRequest("POST", "/stop", strings.NewReader("{}"))
+	req.Host = "127.0.0.1:8517"
+	req.Header.Set("Content-Type", "text/plain")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("text/plain POST = %d, want 415", rec.Code)
+	}
+}
+
+func TestUXEndpoints(t *testing.T) {
+	isolate(t)
+	f := &fake{}
+	h := Handler(f)
+	do(t, h, "POST", "/restart", "", nil)
+	do(t, h, "POST", "/rescan", "", nil)
+	do(t, h, "POST", "/model/favorite", `{"model":"a","favorite":true}`, nil)
+	do(t, h, "POST", "/model/delete", `{"model":"a"}`, nil)
+	do(t, h, "POST", "/config/reset", `{"name":"default"}`, nil)
+	do(t, h, "POST", "/config/autofit", "", nil)
+	if code, body := do(t, h, "GET", "/config/export", "", nil); code != 200 || !strings.Contains(body, `"alias":"a"`) {
+		t.Errorf("GET /config/export = %d %s", code, body)
+	}
+	want := "restart,rescan,favorite:a,delete:a,reset:default,autofit"
+	if got := strings.Join(f.calls, ","); got != want {
+		t.Errorf("calls = %s\nwant    %s", got, want)
+	}
+}
+
+func TestBenchmarkAndImportEndpoints(t *testing.T) {
+	isolate(t)
+	f := &fake{}
+	h := Handler(f)
+	do(t, h, "POST", "/model/import", `{"src":"/tmp/m.gguf","mmproj":"/tmp/mmproj.gguf","move":true}`, nil)
+	if code, body := do(t, h, "POST", "/benchmark", "", nil); code != 200 || !strings.Contains(body, `"genTokPerSec":42.5`) {
+		t.Errorf("POST /benchmark = %d %s", code, body)
+	}
+	if code, body := do(t, h, "GET", "/benchmarks", "", nil); code != 200 || !strings.Contains(body, `"preset":"default"`) {
+		t.Errorf("GET /benchmarks = %d %s", code, body)
+	}
+	do(t, h, "POST", "/benchmarks/clear", "", nil)
+	want := "import:/tmp/m.gguf|/tmp/mmproj.gguf|true|false,bench,benchclear"
+	if got := strings.Join(f.calls, ","); got != want {
+		t.Errorf("calls = %s\nwant    %s", got, want)
 	}
 }
 

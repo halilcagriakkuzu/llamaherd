@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -20,11 +20,19 @@ import (
 // update the shared state and emit at most ~6 events/second.
 func (a *App) doDownload(ctx context.Context, repo, file, visionFile, mtpFile string) error {
 	token := settings.HFToken()
-	destDir := filepath.Join(settings.ModelsDir(), repo)
+	modelsDir := settings.ModelsDir()
+	destDir := filepath.Join(modelsDir, repo)
+	if !settings.PathInside(modelsDir, destDir) {
+		return fmt.Errorf("download destination escapes the models directory")
+	}
 
-	tree, err := hf.Tree(ctx, repo, token)
+	info, err := checkDownloadAccess(ctx, repo, token)
 	if err != nil {
 		return err
+	}
+	tree, err := hf.Tree(ctx, repo, token)
+	if err != nil {
+		return downloadAccessError(err, info, token)
 	}
 	model, err := hf.ResolveFile(tree, file)
 	if err != nil {
@@ -55,7 +63,7 @@ func (a *App) doDownload(ctx context.Context, repo, file, visionFile, mtpFile st
 		OnProgress: onProgress(model.Path), Retries: 3,
 	})
 	if err != nil {
-		return err
+		return downloadAccessError(err, info, token)
 	}
 	a.setDownload(func(d *DownloadState) { d.Files = append(d.Files, modelPath) })
 
@@ -87,21 +95,24 @@ func (a *App) doDownload(ctx context.Context, repo, file, visionFile, mtpFile st
 		a.setDownload(func(d *DownloadState) { d.Files = append(d.Files, draftPath) })
 	}
 
-	a.installDownloaded(repo, model.Path, modelPath, mmPath, draftPath)
+	a.installDownloaded(repo, model.Path, modelPath, mmPath, draftPath, provenanceFrom(info))
 	return nil
 }
 
-// installDownloaded writes a library meta and a tuned ~50k-context preset for
-// a freshly downloaded model, then rescans the models directory. Embedded MTP
+// installDownloaded writes a library meta (with the repo/licence recorded at
+// download time) and a tuned ~50k-context preset for a freshly downloaded model, then rescans the models directory. Embedded MTP
 // heads and downloaded sidecars (vision, MTP draft) are recorded in the meta.
-func (a *App) installDownloaded(repo, file, modelPath, mmPath, draftPath string) {
-	id := store.DerivedAlias(modelPath)
+func (a *App) installDownloaded(repo, file, modelPath, mmPath, draftPath string, prov *schema.Provenance) {
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
+	id := store.UniqueIDFor(modelPath, a.models)
 	meta := store.Meta{
-		ID:       id,
-		Path:     settings.RelativizeModelPath(modelPath),
-		Category: []string{"Downloaded", repoName(repo)},
-		MMProj:   settings.RelativizeModelPath(mmPath),
-		Source:   "hf:" + repo + "/" + file,
+		ID:         id,
+		Path:       settings.RelativizeModelPath(modelPath),
+		Category:   []string{"Downloaded", repoName(repo)},
+		MMProj:     settings.RelativizeModelPath(mmPath),
+		Source:     "hf:" + repo + "/" + file,
+		Provenance: prov,
 	}
 	// Trust the GGUF header over a hand-written flag for the embedded MTP head.
 	if info, err := store.ReadGGUFInfo(modelPath); err == nil && info.NextNPredictLayers > 0 {
@@ -129,6 +140,7 @@ func (a *App) installDownloaded(repo, file, modelPath, mmPath, draftPath string)
 		a.Log("hf: MTP draft sidecar installed (" + filepath.Base(draftPath) + "); enable speculative decoding with spec type draft-simple")
 	}
 	a.Log("hf: installed " + filepath.Base(modelPath) + " (alias " + id + ")")
+	a.emitStateLocked()
 }
 
 func repoName(repo string) string {
@@ -164,10 +176,7 @@ func (a *App) buildDownloadPreset(alias, model, mmproj, draft string, embeddedMT
 		// like FastMTP, need a patched runtime) but pre-fill the path.
 		p.Advanced.DraftModel = draft
 	}
-	if ngl := control.SafeGpuLayers(p.AsConfig()); ngl >= 0 {
-		p.Basic.GPULayers = strconv.Itoa(ngl)
-	}
-	return p
+	return control.FitPreset(p.AsConfig(), 51200).AsPreset("default")
 }
 
 // persistModelsDir records the resolved models directory in the user config so

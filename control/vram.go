@@ -211,6 +211,43 @@ func gpuLayerFraction(cfg schema.Config) (float64, string) {
 	return frac, fmt.Sprintf("-ngl=%d/%d", n, layers)
 }
 
+// SafeContext returns the largest context (in 1024-token steps) that still
+// passes the VRAM guard for cfg with its current -ngl. It never exceeds the
+// model's trained context or desired, and returns desired unchanged when no GPU
+// is visible (there is nothing to guard).
+func SafeContext(cfg schema.Config, desired int) int {
+	if desired <= 0 {
+		desired = 32768
+	}
+	if info, err := store.ReadGGUFInfo(cfg.Basic.Model); err == nil && info.ContextLength > 0 && desired > info.ContextLength {
+		desired = info.ContextLength
+	}
+	if TotalVramMB() <= 0 {
+		return desired
+	}
+	for ctx := desired; ctx >= 2048; ctx -= 1024 {
+		c := cfg
+		c.Basic.Context = ctx
+		if EstimateVram(c).Fits {
+			return ctx
+		}
+	}
+	return 2048
+}
+
+// FitPreset adjusts a preset to the current machine: pick the largest context
+// that fits with all layers on the GPU, then use the largest -ngl that still
+// fits at that context. This replaces hardcoded "51200 context + all layers"
+// presets that force a tiny GPU offload on smaller cards.
+func FitPreset(cfg schema.Config, desiredContext int) schema.Config {
+	c := cfg
+	c.Basic.Context = SafeContext(c, desiredContext)
+	if ngl := SafeGpuLayers(c); ngl >= 0 {
+		c.Basic.GPULayers = strconv.Itoa(ngl)
+	}
+	return c
+}
+
 // SafeGpuLayers returns the largest -ngl (0..layers) whose launch estimate
 // stays within the budget, or -1 when it cannot be determined (no GPU, or the
 // model metadata is unreadable). A value equal to the model's layer count

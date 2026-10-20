@@ -20,7 +20,11 @@ type RepoFile struct {
 // as a choice: loadable models (smallest first), vision projectors and MTP
 // draft sidecars.
 type RepoListing struct {
-	Repo      string     `json:"repo"`
+	Repo string `json:"repo"`
+	// Gated/License come from the model API (empty when the lookup failed); a
+	// gated repository needs its licence accepted on Hugging Face first.
+	Gated     string     `json:"gated,omitempty"`
+	License   string     `json:"license,omitempty"`
 	Models    []RepoFile `json:"models"`
 	MMProjs   []RepoFile `json:"mmprojs"`
 	MTPDrafts []RepoFile `json:"mtpDrafts"`
@@ -48,12 +52,19 @@ func QuantOf(name string) string {
 // Multi-part shard sets are returned as a single entry with Parts > 1 and the
 // summed size (the downloader handles single files only).
 func ListRepo(ctx context.Context, ref, token string) (RepoListing, error) {
-	repo, _ := ParseRef(ref)
+	repo, _, err := ParseRef(ref)
+	if err != nil {
+		return RepoListing{}, err
+	}
 	tree, err := Tree(ctx, repo, token)
 	if err != nil {
 		return RepoListing{}, err
 	}
-	return classify(repo, tree), nil
+	out := classify(repo, tree)
+	if info, err := FetchModelInfo(ctx, repo, token); err == nil {
+		out.Gated, out.License = info.Gated, info.License
+	}
+	return out, nil
 }
 
 func classify(repo string, tree []TreeFile) RepoListing {

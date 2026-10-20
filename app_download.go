@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"llamaherd/control"
+	"llamaherd/doctor"
 	"llamaherd/hf"
 	"llamaherd/settings"
 )
@@ -101,14 +102,18 @@ func catalogView() map[string]any {
 	vram := control.TotalVramMB()
 	ram := totalRAMMB()
 	recs := hf.Recommend(vram, ram)
+	free, total, _ := doctor.DiskFree(settings.ModelsDir())
 	return map[string]any{
-		"vramMB":  vram,
-		"ramMB":   ram,
-		"picks":   hf.Picks(recs),
-		"fitting": len(recs),        // models that suit this machine
-		"total":   hf.FamilyCount(), // models in the catalog
-		"info":    hf.Info(),        // where the catalog came from
-		"starter": hf.Starter(),
+		"vramMB":    vram,
+		"ramMB":     ram,
+		"picks":     hf.Picks(recs),
+		"fitting":   len(recs),        // models that suit this machine
+		"total":     hf.FamilyCount(), // models in the catalog
+		"info":      hf.Info(),        // where the catalog came from
+		"starter":   hf.Starter(),
+		"diskFree":  free,
+		"diskTotal": total,
+		"modelsDir": settings.ModelsDir(),
 	}
 }
 

@@ -122,6 +122,8 @@ func (a *App) ForceStopLlama() {
 	pids := control.KillLlamaProcs(4 * time.Second)
 	a.Log(fmt.Sprintf("llama.cpp: signalled pid(s) %v", pids))
 	a.mgr.ResetExternal()
+	a.stateMu.Lock()
 	a.runCfg = nil
-	a.emitState()
+	a.emitStateLocked()
+	a.stateMu.Unlock()
 }

@@ -21,7 +21,7 @@ import (
 )
 
 // Status mirrors the README state machine.
-// stopped -> starting -> running -> stopped, plus crashed.
+// stopped -> starting -> running -> stopped, plus crashed and failed.
 type Status string
 
 const (
@@ -30,7 +30,18 @@ const (
 	StatusStopping Status = "stopping"
 	StatusRunning  Status = "running"
 	StatusCrashed  Status = "crashed"
+	// StatusFailed means the process is still alive but never answered /health
+	// within healthTimeout. It is a terminal "not responding" state: Stop and
+	// Restart remain available, Start does not.
+	StatusFailed Status = "failed"
 )
+
+// healthTimeout is how long a spawned server may take to answer /health before
+// the manager flips to StatusFailed. A variable so tests can shorten it.
+var healthTimeout = 60 * time.Second
+
+// recentLogMax is how many raw server log lines are kept for error reporting.
+const recentLogMax = 40
 
 // Info is the manager's exportable state snapshot.
 type Info struct {
@@ -43,6 +54,9 @@ type Info struct {
 	VRAMMB   int // live GPU memory of the process (0 = unknown)
 	RAMMB    int // live RSS of the process
 	NCtx     int // real n_ctx from /props (0 = unknown)
+	// RecentLog is the tail of the server's own output (newest last), kept so
+	// the UI can explain a crash or a "not responding" start.
+	RecentLog []string
 }
 
 // Manager controls one llama-server child at a time.
@@ -60,6 +74,7 @@ type Manager struct {
 	ramMB    int
 	nCtx     int
 	speed    SpeedStats // generation speed since the last Start
+	recent   []string   // tail of the server output (crash/start diagnostics)
 	onChange func()     // called on every state transition (any goroutine)
 	onLog    func(string)
 }
@@ -87,6 +102,17 @@ func (m *Manager) log(line string) {
 	}
 }
 
+// recordRecent keeps the last recentLogMax server output lines. The lock is
+// taken here (not by the caller) so pipeLogs stays simple.
+func (m *Manager) recordRecent(line string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recent = append(m.recent, line)
+	if len(m.recent) > recentLogMax {
+		m.recent = m.recent[len(m.recent)-recentLogMax:]
+	}
+}
+
 func (m *Manager) emit() {
 	m.mu.Lock()
 	f := m.onChange
@@ -110,6 +136,7 @@ func (m *Manager) Info() Info {
 		RAMMB:    m.ramMB,
 		NCtx:     m.nCtx,
 	}
+	info.RecentLog = append([]string(nil), m.recent...)
 	if m.cmd != nil && m.cmd.Process != nil {
 		info.PID = m.cmd.Process.Pid
 	}
@@ -182,6 +209,7 @@ func (m *Manager) Start(cfg schema.Config) error {
 	m.external = false
 	m.exit = 0
 	m.speed = SpeedStats{}
+	m.recent = nil
 	m.listen = addr
 	m.setStatusLocked(StatusStarting)
 	pid := cmd.Process.Pid
@@ -215,7 +243,7 @@ func (m *Manager) Stop() error {
 		m.mu.Unlock()
 		return nil
 	}
-	if m.status == StatusRunning || m.status == StatusStarting {
+	if m.status == StatusRunning || m.status == StatusStarting || m.status == StatusFailed {
 		m.status = StatusStopping
 	}
 	cancel := m.cancel
@@ -246,6 +274,7 @@ func (m *Manager) pipeLogs(r interface{ Read([]byte) (int, error) }, stream stri
 	for sc.Scan() {
 		line := sc.Text()
 		m.recordLine(line)
+		m.recordRecent(line)
 		m.log(fmt.Sprintf("[%s] %s", stream, line))
 	}
 }
@@ -284,10 +313,10 @@ func (m *Manager) awaitExit(cmd *exec.Cmd, ctx context.Context) {
 }
 
 // awaitHealth polls /health until the server answers (flip to running) or
-// gives up after 60s, logging but leaving the state machine untouched.
+// healthTimeout elapses (flip to failed: the process is alive but not serving).
 func (m *Manager) awaitHealth(ctx context.Context, host string, port int, startedAt time.Time) {
 	addr := fmt.Sprintf("%s:%d", host, port)
-	deadline := time.Now().Add(60 * time.Second)
+	deadline := time.Now().Add(healthTimeout)
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
@@ -317,7 +346,56 @@ func (m *Manager) awaitHealth(ctx context.Context, host string, port int, starte
 			return
 		}
 	}
-	m.log("server not healthy after 60s — still waiting (check LOGS)")
+	m.mu.Lock()
+	if m.status != StatusStarting {
+		m.mu.Unlock()
+		return // exited or stopped while we were waiting
+	}
+	m.status = StatusFailed
+	m.mu.Unlock()
+	m.log(fmt.Sprintf("server did not answer /health within %s — marked as not responding; still watching in the background",
+		healthTimeout.Truncate(time.Second)))
+	m.emit()
+	// A big model can finish loading after the timeout. Keep a slow watcher so
+	// "failed" clears by itself when the server finally becomes healthy.
+	go m.awaitLateHealth(ctx, addr, startedAt)
+}
+
+// awaitLateHealth polls a server that was marked failed. It stops as soon as
+// the manager leaves the failed state (stopped/crashed) or the server answers.
+func (m *Manager) awaitLateHealth(ctx context.Context, addr string, startedAt time.Time) {
+	tick := time.NewTicker(2 * time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+		m.mu.Lock()
+		failed := m.status == StatusFailed
+		m.mu.Unlock()
+		if !failed {
+			return
+		}
+		if !healthOK(addr, time.Second) {
+			continue
+		}
+		m.mu.Lock()
+		if m.status == StatusFailed {
+			m.status = StatusRunning
+			m.readyAt = time.Now()
+		}
+		ready := m.status == StatusRunning
+		m.mu.Unlock()
+		if ready {
+			el := time.Since(startedAt).Truncate(100 * time.Millisecond)
+			m.log(fmt.Sprintf("ready after a slow start (%s, %s)", el, addr))
+			go m.sampleMetrics(ctx)
+			m.emit()
+		}
+		return
+	}
 }
 
 // sampleMetrics polls VRAM/RSS every 5s while the process lives; n_ctx is
@@ -427,6 +505,11 @@ func BuildArgs(cfg schema.Config) []string {
 		args = append(args, "--jinja")
 	}
 	add("--reasoning-format", b.ReasoningFmt)
+	// 0 means "unset" (no flag; server default). Negative values are meaningful
+	// to llama.cpp (-1 = unlimited), so only exactly 0 is skipped.
+	if b.ReasoningBudget != 0 {
+		add("--reasoning-budget", fmt.Sprint(b.ReasoningBudget))
+	}
 	if strings.HasPrefix(adv.SpecType, "draft-") {
 		add("--spec-type", adv.SpecType)
 		// -md/--spec-draft-model is a separate draft sidecar; draft-mtp reads

@@ -147,3 +147,30 @@ func HumanMB(mb int) string {
 	}
 	return fmt.Sprintf("%.1f GB", float64(mb)/1024)
 }
+
+// GPUUtilTemp returns the highest utilization (%) and temperature (°C) across
+// visible NVIDIA GPUs. Zero values mean "unavailable" (non-NVIDIA, driver, or
+// WSL restrictions).
+func GPUUtilTemp() (util, temp int) {
+	out, err := exec.Command("nvidia-smi",
+		"--query-gpu=utilization.gpu,temperature.gpu",
+		"--format=csv,noheader,nounits").Output()
+	if err != nil {
+		return 0, 0
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		parts := strings.Split(line, ",")
+		if len(parts) < 2 {
+			continue
+		}
+		u, e1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+		t, e2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if e1 == nil && u > util {
+			util = u
+		}
+		if e2 == nil && t > temp {
+			temp = t
+		}
+	}
+	return util, temp
+}

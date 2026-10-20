@@ -24,6 +24,8 @@
 package settings
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -54,6 +56,10 @@ const (
 	EnvConfigsDir = "LLAMAHERD_CONFIGS_DIR"
 	// EnvLibraryDir overrides the per-model metadata directory.
 	EnvLibraryDir = "LLAMAHERD_LIBRARY_DIR"
+	// EnvBenchDir overrides the directory holding stored benchmark results.
+	EnvBenchDir = "LLAMAHERD_BENCH_DIR"
+	// EnvLogFile overrides the rotating log path; "off" disables the file.
+	EnvLogFile = "LLAMAHERD_LOG_FILE"
 
 	// DefaultBuildDir is used when the build directory cannot be derived.
 	DefaultBuildDir = "build-latest"
@@ -75,6 +81,9 @@ type File struct {
 	ModelsDir     string `json:"modelsDir,omitempty"`
 	APIPort       string `json:"apiPort,omitempty"`
 	APIToken      string `json:"apiToken,omitempty"`
+	// LogFile overrides the rotating log path (default <data>/logs/llamaherd.log);
+	// the literal "off" disables writing logs to disk.
+	LogFile string `json:"logFile,omitempty"`
 }
 
 // ConfigFile returns the path of the user config file.
@@ -287,12 +296,37 @@ func APIAddr() string {
 
 // APIToken returns the bearer token the loopback control API requires, or ""
 // for no authentication. An explicit LLAMAHERD_API_TOKEN or config-file value
-// wins.
+// wins; the literal "off" disables the token explicitly.
 func APIToken() string {
 	if v := strings.TrimSpace(os.Getenv(EnvAPIToken)); v != "" {
 		return v
 	}
-	return strings.TrimSpace(Config().APIToken)
+	if v := strings.TrimSpace(Config().APIToken); v != "" && !strings.EqualFold(v, "off") {
+		return v
+	}
+	return ""
+}
+
+// EnsureAPIToken generates a random bearer token and stores it in the user
+// config when one exists and no token (or explicit "off") is configured. The
+// CLI and daemon read the same file, so they keep working without extra setup.
+func EnsureAPIToken() (generated bool, err error) {
+	if strings.TrimSpace(os.Getenv(EnvAPIToken)) != "" || !ConfigExists() {
+		return false, nil
+	}
+	f := Config()
+	if v := strings.TrimSpace(f.APIToken); v != "" {
+		return false, nil
+	}
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		return false, err
+	}
+	f.APIToken = hex.EncodeToString(buf)
+	if err := Save(f); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // DataDir returns the per-user writable directory for generated data
@@ -351,6 +385,100 @@ func LibraryDir() string {
 	return filepath.Join(DataDir(), "library")
 }
 
+// LogFile returns the rotating log file path, or "" when file logging is
+// disabled. Resolution: LLAMAHERD_LOG_FILE, then the user config, then
+// <data dir>/logs/llamaherd.log. The literals "off", "none" and "disabled"
+// (case-insensitive) disable it.
+func LogFile() string {
+	v := strings.TrimSpace(os.Getenv(EnvLogFile))
+	if v == "" {
+		v = strings.TrimSpace(Config().LogFile)
+	}
+	switch strings.ToLower(v) {
+	case "off", "none", "disabled":
+		return ""
+	}
+	if v == "" {
+		return filepath.Join(DataDir(), "logs", "llamaherd.log")
+	}
+	v = expandHome(v)
+	if isDir(v) {
+		return filepath.Join(v, "llamaherd.log")
+	}
+	return v
+}
+
+// BenchmarksDir returns the directory holding stored benchmark results
+// (benchmarks/<model-id>.json). It follows the per-user data directory.
+func BenchmarksDir() string {
+	if v := strings.TrimSpace(os.Getenv(EnvBenchDir)); v != "" {
+		return expandHome(v)
+	}
+	return filepath.Join(DataDir(), "benchmarks")
+}
+
+// CaseInsensitivePaths reports whether this OS normally uses a case-insensitive
+// filesystem. macOS can be configured case-sensitive, but the default and the
+// Windows behaviour are what model/config lookups must match.
+func CaseInsensitivePaths() bool {
+	return runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+}
+
+// SamePath compares two cleaned paths according to the platform's usual
+// case-sensitivity. Use PathEqual in tests that need both modes.
+func SamePath(a, b string) bool {
+	return PathEqual(a, b, CaseInsensitivePaths())
+}
+
+// PathEqual is SamePath with an explicit folding mode.
+func PathEqual(a, b string, fold bool) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if fold {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+// PathInside reports whether p lies under dir (or equals it), honouring the
+// platform's case rules.
+func PathInside(dir, p string) bool {
+	return PathInsideWith(dir, p, CaseInsensitivePaths())
+}
+
+// PathInsideWith is PathInside with an explicit folding mode.
+func PathInsideWith(dir, p string, fold bool) bool {
+	dir, p = filepath.Clean(dir), filepath.Clean(p)
+	if rel, err := filepath.Rel(dir, p); err == nil && underRel(rel) {
+		return true
+	}
+	if !fold {
+		return false
+	}
+	rel, err := filepath.Rel(strings.ToLower(dir), strings.ToLower(p))
+	return err == nil && underRel(rel)
+}
+
+func underRel(rel string) bool {
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+// relUnder returns p relative to dir when p is inside dir. In folding mode a
+// case-only difference is accepted; the returned relative path is lower-cased
+// only when the exact comparison failed (safe on case-insensitive filesystems).
+func relUnder(dir, p string, fold bool) (string, bool) {
+	if rel, err := filepath.Rel(dir, p); err == nil && underRel(rel) {
+		return rel, true
+	}
+	if !fold {
+		return "", false
+	}
+	rel, err := filepath.Rel(strings.ToLower(dir), strings.ToLower(p))
+	if err != nil || !underRel(rel) {
+		return "", false
+	}
+	return rel, true
+}
+
 // ResolveModelPath turns a configured model / mmproj path into an absolute
 // path. Shipped configs store paths relative to the models directory; absolute
 // paths (e.g. ones a user saved) pass through unchanged. A leading ~ and the
@@ -386,8 +514,7 @@ func RelativizeModelPath(p string) string {
 	}
 	md := ModelsDir()
 	if filepath.IsAbs(p) {
-		if rel, err := filepath.Rel(md, p); err == nil &&
-			rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		if rel, ok := relUnder(md, p, CaseInsensitivePaths()); ok {
 			return filepath.ToSlash(rel)
 		}
 	}
@@ -513,4 +640,27 @@ func fileExists(p string) bool {
 func isDir(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && st.IsDir()
+}
+
+// ServerBinCandidates returns the automatically discoverable llama-server
+// locations (PATH first, then the usual llama.cpp build trees), de-duplicated.
+// Files are not checked here; control.ProbeBinary decides whether one runs.
+func ServerBinCandidates() []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(p string) {
+		p = strings.TrimSpace(p)
+		if p == "" || seen[p] {
+			return
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	if p, err := exec.LookPath(binFileName()); err == nil {
+		add(p)
+	}
+	for _, p := range serverBinCandidates() {
+		add(p)
+	}
+	return out
 }

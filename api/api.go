@@ -7,7 +7,11 @@ package api
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"llamaherd/schema"
 	"llamaherd/settings"
@@ -18,6 +22,7 @@ type Control interface {
 	SnapshotJSON() ([]byte, error)
 	DoctorJSON() ([]byte, error)
 	DownloadJSON() ([]byte, error)
+	LogsJSON(tail int, after int64) ([]byte, error)
 	CatalogJSON(all bool) ([]byte, error)
 	StartDownload(ref, file, visionFile, mtpFile string) error
 	RepoFilesJSON(ref string) ([]byte, error)
@@ -29,13 +34,25 @@ type Control interface {
 	SelectPreset(name string)
 	Open(alias, preset string) error
 	Stop() error
+	RestartServer() error
+	RescanModels() error
 	SaveConfig()
 	LoadConfig()
 	AddPreset(alias, name string, cfg schema.Config) error
 	UpdatePreset(alias, name string, cfg schema.Config) error
 	RemovePreset(alias, name string) error
 	RenamePreset(alias, oldName, newName string) error
+	ResetPreset(name string) error
+	ExportPresets() (string, error)
+	AutoFitConfig() (string, error)
 	RenameModel(ref, name, alias string) error
+	ImportModels(paths []string, mmproj string, move, allowDuplicate bool) (schema.ImportReport, error)
+	CheckImport(paths []string) []schema.ImportCheck
+	RunBenchmark() (schema.Benchmark, error)
+	Benchmarks() []schema.Benchmark
+	ClearBenchmarks() error
+	DeleteModel(ref string) error
+	SetModelFavorite(ref string, favorite bool) error
 	SetModelCategory(ref string, category []string) error
 	CreateCategory(path []string) error
 	RenameCategory(path []string, newName string) error
@@ -104,6 +121,33 @@ func Handler(c Control) http.Handler {
 		b, err := c.RepoFilesJSON(ref)
 		if err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(b)
+	})
+	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
+		tail := 200
+		if v := r.URL.Query().Get("tail"); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 0 {
+				http.Error(w, "tail must be a non-negative integer", http.StatusBadRequest)
+				return
+			}
+			tail = n
+		}
+		after := int64(-1)
+		if v := r.URL.Query().Get("after"); v != "" {
+			n, err := strconv.ParseInt(v, 10, 64)
+			if err != nil || n < 0 {
+				http.Error(w, "after must be a non-negative integer", http.StatusBadRequest)
+				return
+			}
+			after = n
+		}
+		b, err := c.LogsJSON(tail, after)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -191,6 +235,20 @@ func Handler(c Control) http.Handler {
 		}
 		writeJSON(w, map[string]any{"ok": true})
 	})
+	mux.HandleFunc("POST /restart", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.RestartServer(); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("POST /rescan", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.RescanModels(); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	})
 	mux.HandleFunc("POST /save", func(w http.ResponseWriter, r *http.Request) {
 		c.SaveConfig()
 		writeJSON(w, map[string]any{"ok": true})
@@ -204,6 +262,75 @@ func Handler(c Control) http.Handler {
 	mux.HandleFunc("POST /model/rename", func(w http.ResponseWriter, r *http.Request) {
 		var req struct{ Model, Name, Alias string }
 		decodeAndRun(w, r, &req, func() error { return c.RenameModel(req.Model, req.Name, req.Alias) })
+	})
+	mux.HandleFunc("POST /model/import", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Paths          []string `json:"paths"`
+			Src            string   `json:"src"` // legacy single-file form
+			MMProj         string   `json:"mmproj"`
+			Move           bool     `json:"move"`
+			AllowDuplicate bool     `json:"allowDuplicate"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		paths := req.Paths
+		if len(paths) == 0 && req.Src != "" {
+			paths = []string{req.Src}
+		}
+		report, err := c.ImportModels(paths, req.MMProj, req.Move, req.AllowDuplicate)
+		if err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error(), "report": report})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "report": report})
+	})
+	mux.HandleFunc("POST /model/import/check", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Paths []string `json:"paths"`
+			Src   string   `json:"src"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		paths := req.Paths
+		if len(paths) == 0 && req.Src != "" {
+			paths = []string{req.Src}
+		}
+		writeJSON(w, map[string]any{"ok": true, "checks": c.CheckImport(paths)})
+	})
+	mux.HandleFunc("POST /benchmark", func(w http.ResponseWriter, r *http.Request) {
+		b, err := c.RunBenchmark()
+		if err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "result": b})
+	})
+	mux.HandleFunc("GET /benchmarks", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"benchmarks": c.Benchmarks()})
+	})
+	mux.HandleFunc("POST /benchmarks/clear", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.ClearBenchmarks(); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("POST /model/delete", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Model string `json:"model"`
+		}
+		decodeAndRun(w, r, &req, func() error { return c.DeleteModel(req.Model) })
+	})
+	mux.HandleFunc("POST /model/favorite", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Model    string `json:"model"`
+			Favorite bool   `json:"favorite"`
+		}
+		decodeAndRun(w, r, &req, func() error { return c.SetModelFavorite(req.Model, req.Favorite) })
 	})
 	mux.HandleFunc("POST /model/category", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -273,15 +400,56 @@ func Handler(c Control) http.Handler {
 		}
 		writeJSON(w, map[string]any{"ok": true})
 	})
+	mux.HandleFunc("POST /config/reset", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Name string `json:"name"`
+		}
+		decodeAndRun(w, r, &req, func() error { return c.ResetPreset(req.Name) })
+	})
+	mux.HandleFunc("POST /config/autofit", func(w http.ResponseWriter, r *http.Request) {
+		msg, err := c.AutoFitConfig()
+		if err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "message": msg})
+	})
+	mux.HandleFunc("GET /config/export", func(w http.ResponseWriter, r *http.Request) {
+		b, err := c.ExportPresets()
+		if err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(b))
+	})
 
 	return withAuth(mux)
 }
 
-// withAuth enforces a bearer token when settings.APIToken() is set, accepting
-// "Authorization: Bearer <token>" or a "?token=<token>" query parameter. With
-// no token configured the API stays open (backward compatible).
+// withAuth enforces the loopback security model: requests must address a
+// loopback Host (DNS-rebinding defence), a browser Origin must also be loopback
+// (CSRF defence), mutating requests must be JSON (forces a CORS preflight, so a
+// cross-origin page cannot send a "simple" text/plain POST), and a bearer token
+// is required when configured. With no token configured the API stays open to
+// local tools.
 func withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !loopbackHost(r.Host) {
+			http.Error(w, "forbidden: non-loopback host", http.StatusForbidden)
+			return
+		}
+		if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" && !loopbackOrigin(origin) {
+			http.Error(w, "forbidden: cross-origin request", http.StatusForbidden)
+			return
+		}
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			if !strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "application/json") {
+				http.Error(w, "unsupported media type: application/json required", http.StatusUnsupportedMediaType)
+				return
+			}
+		}
 		tok := settings.APIToken()
 		if tok == "" ||
 			r.Header.Get("Authorization") == "Bearer "+tok ||
@@ -292,6 +460,33 @@ func withAuth(next http.Handler) http.Handler {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	})
+}
+
+// loopbackHost reports whether a Host header names this machine.
+func loopbackHost(hostport string) bool {
+	if hostport == "" {
+		return true // in-process/test handler, no network boundary
+	}
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// loopbackOrigin reports whether a browser Origin is a loopback page. The
+// literal "null" origin (sandboxed/file pages) is never trusted.
+func loopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return loopbackHost(u.Host)
 }
 
 // mergePreset handles add/update: the given config replaces the referenced

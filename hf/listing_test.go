@@ -1,6 +1,11 @@
 package hf
 
-import "testing"
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
 func TestQuantOf(t *testing.T) {
 	for in, want := range map[string]string{
@@ -63,5 +68,27 @@ func TestNoneSentinel(t *testing.T) {
 	}
 	if !IsModelFile("m.gguf") || IsModelFile("MTP/mtp-m.gguf") {
 		t.Error("an MTP sidecar is not a model")
+	}
+}
+
+func TestListRepoReportsGatedLicence(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/models/acme/gated/tree/main":
+			_, _ = w.Write([]byte(`[{"type":"file","path":"m-Q4_K_M.gguf","size":10}]`))
+		case "/api/models/acme/gated":
+			_, _ = w.Write([]byte(`{"gated":"manual","cardData":{"license":"llama3"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	t.Setenv("HF_ENDPOINT", srv.URL)
+	l, err := ListRepo(context.Background(), "acme/gated", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.Gated != "manual" || l.License != "llama3" || len(l.Models) != 1 {
+		t.Errorf("listing = %+v", l)
 	}
 }

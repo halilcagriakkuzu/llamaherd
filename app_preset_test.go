@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"llamaherd/schema"
 	"llamaherd/settings"
 	"llamaherd/store"
 )
@@ -64,5 +65,33 @@ func TestSavePresetAsRenameAndRemove(t *testing.T) {
 
 	if err := a.RemovePreset("alpha", "faster"); err == nil {
 		t.Error("removing the last preset should fail")
+	}
+}
+
+func TestUpdatePresetMergesPartialConfig(t *testing.T) {
+	a, _ := libApp(t, "alpha")
+	base := a.presets["alpha"][0]
+	if base.Basic.Model == "" || base.Basic.Context == 0 {
+		t.Fatalf("default preset is incomplete: %+v", base)
+	}
+
+	patch := schema.Config{Basic: schema.Basic{Port: 9555}}
+	if err := a.UpdatePreset("alpha", "default", patch); err != nil {
+		t.Fatal(err)
+	}
+	got := a.presets["alpha"][0]
+	if got.Basic.Port != 9555 {
+		t.Errorf("port = %d, want 9555", got.Basic.Port)
+	}
+	if got.Basic.Model != base.Basic.Model || got.Basic.Context != base.Basic.Context ||
+		got.Basic.GPULayers != base.Basic.GPULayers || got.Advanced.Fit != base.Advanced.Fit {
+		t.Errorf("partial update dropped fields: got %+v, base %+v", got, base)
+	}
+	f, err := store.LoadAlias(settings.ConfigsDir(), "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Presets[0].Basic.Port != 9555 || f.Presets[0].Basic.Model != base.Basic.Model {
+		t.Errorf("merge not persisted: %+v", f.Presets[0])
 	}
 }

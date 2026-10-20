@@ -22,6 +22,7 @@ type Spec struct {
 	Embedding             int
 	FullAttentionInterval int
 	NextNPredictLayers    int
+	ContextLength         int
 	// PadBytes extends the file so it has a realistic on-disk size
 	// (the VRAM estimate scales with file size); Write extends the file sparsely.
 	PadBytes int
@@ -51,6 +52,7 @@ func Bytes(s Spec) []byte {
 		s.Arch + ".embedding_length":        s.Embedding,
 		s.Arch + ".full_attention_interval": s.FullAttentionInterval,
 		s.Arch + ".nextn_predict_layers":    s.NextNPredictLayers,
+		s.Arch + ".context_length":          s.ContextLength,
 	}
 	keys := make([]string, 0, len(ints))
 	for k, v := range ints {

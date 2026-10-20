@@ -40,3 +40,6 @@ func FetchFile(ctx context.Context, repo, want, token string) (TreeFile, error) 
 	}
 	return ResolveFile(tree, want)
 }
+
+// FileSHA256 is the exported content hash used for duplicate detection.
+func FileSHA256(path string) (string, error) { return fileSHA256(path) }

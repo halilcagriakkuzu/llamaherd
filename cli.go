@@ -24,15 +24,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
-	"os/exec"
+	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -68,7 +69,11 @@ func runCLI(args []string) int {
 		return runDoctor(args)
 	case "download":
 		return runDownload(args)
-	case "list", "status", "open", "stop", "save", "load":
+	case "logs":
+		return runLogsCLI(args)
+	case "completion":
+		return runCompletion(args)
+	case "list", "status", "open", "stop", "restart", "rescan", "save", "load", "bench":
 		return ctl(args)
 	case "model", "category":
 		if len(args) >= 2 {
@@ -79,7 +84,7 @@ func runCLI(args []string) int {
 	case "config":
 		if len(args) >= 2 {
 			switch args[1] {
-			case "add", "update", "remove":
+			case "add", "update", "remove", "rename", "reset", "export", "autofit":
 				return ctl(args)
 			}
 		}
@@ -98,28 +103,42 @@ func helpLines() []string {
 		"usage: llamaherd <command> [args]",
 		"",
 		"  (no args)            open the GUI window",
-		"  list [substr]        list models (and their presets); optional alias filter",
-		"  status               print current server snapshot",
+		"  list [--json] [substr]  list models (and their presets); optional alias filter",
+		"  status [--summary]   print the full snapshot (JSON) or a one-screen summary",
 		"  open [alias] [--preset name]",
 		"                       start the real llama-server (alias matches by substring)",
 		"  stop                 stop the managed server",
+		"  restart              stop and start with the current form settings",
+		"  rescan               re-walk the models directory",
+		"  logs [-f] [--tail n] show the app/server log (follow with -f)",
+		"  bench [list|clear]   benchmark the running model/config (or list stored results)",
 		"  save | load          save/load the current selection's configs/<alias>.json",
 		"  config add <alias> <name> [--set basic.port=8090 --set advanced.fit=on ...]",
 		"	 add a NEW named preset (seeded from the alias's first preset,",
 		"	 then --set overrides); bools: true/false, strings quoted",
 		"  config update <alias> <name> [--set key=value ...]",
-		"                       replace an existing preset (same --set syntax)",
+		"                       merge fields into an existing preset (same --set syntax)",
 		"  config remove <alias> <name>",
 		"                       delete a preset (a saved file survives if needed)",
 		"  config rename <alias> <old-name> <new-name>",
 		"                       rename a preset in place",
+		"  config reset [<name>] | config export",
+		"                       reset to the auto-fitted model default / export preset JSON",
+		"  config autofit       fit context and GPU layers to this machine",
 		"  model rename <alias> [--name N] [--alias A]",
 		"                       change a model's display name and/or alias (moves its configs)",
 		"  model move <alias> [<a/b/c>]",
 		"                       put a model in a category (no path: back to Uncategorized)",
+		"  model favorite <alias> [--off] | model delete <alias>",
+		"                       pin/unpin a model; delete its .gguf from disk",
+		"  model import <file.gguf|dir>... [--mmproj <file.gguf>] [--move] [--allow-duplicate] [--check]",
+		"                       import local models (one shared vision projector) into the models dir;",
+		"                       files already in the library are skipped; --check only previews",
 		"  category create|delete <a/b/c> | category rename <a/b/c> <new-name>",
 		"                       manage category folders (deleting keeps the models)",
 		"  daemon               headless core serving only the control API",
+		"  completion bash|zsh|fish",
+		"                       print a shell completion script",
 		"  version              print the version and exit",
 		"  doctor [--json]      check the environment (binary, GPU, libs, models, port)",
 		"  download list        curated models that fit this machine (VRAM/RAM)",
@@ -137,19 +156,24 @@ func helpLines() []string {
 // unknown, so the caller falls through).
 func subcommandUsage(sub string) string {
 	m := map[string]string{
-		"list":     "usage: llamaherd list [alias-substring]",
-		"status":   "usage: llamaherd status",
-		"open":     "usage: llamaherd open [alias] [--preset name]",
-		"stop":     "usage: llamaherd stop",
-		"save":     "usage: llamaherd save",
-		"load":     "usage: llamaherd load",
-		"daemon":   "usage: llamaherd daemon            # headless: serve only the control API",
-		"doctor":   "usage: llamaherd doctor [--json]",
-		"download": "usage: llamaherd download list|<ref> [<file>] [--vision <file>]|status|cancel|token [<t>|--clear]",
-		"config":   "usage: llamaherd config add|update|remove|rename <alias> <name> [--set key=value ...]",
-		"model":    "usage: llamaherd model rename <alias> [--name N] [--alias A] | model move <alias> [<a/b/c>]",
-		"category": "usage: llamaherd category create|delete <a/b/c> | category rename <a/b/c> <new-name>",
-		"version":  "usage: llamaherd version          # print the version and exit",
+		"list":       "usage: llamaherd list [alias-substring]",
+		"status":     "usage: llamaherd status",
+		"open":       "usage: llamaherd open [alias] [--preset name]",
+		"stop":       "usage: llamaherd stop",
+		"restart":    "usage: llamaherd restart",
+		"rescan":     "usage: llamaherd rescan",
+		"bench":      "usage: llamaherd bench [list|clear]   # requires a running server",
+		"logs":       "usage: llamaherd logs [-f] [--tail n]",
+		"completion": "usage: llamaherd completion bash|zsh|fish",
+		"save":       "usage: llamaherd save",
+		"load":       "usage: llamaherd load",
+		"daemon":     "usage: llamaherd daemon            # headless: serve only the control API",
+		"doctor":     "usage: llamaherd doctor [--json]",
+		"download":   "usage: llamaherd download list|<ref> [<file>] [--vision <file>]|status|cancel|token [<t>|--clear]",
+		"config":     "usage: llamaherd config add|update|remove|rename <alias> <name> | config reset [<name>] | config export | config autofit",
+		"model":      "usage: llamaherd model rename <alias> [--name N] [--alias A] | model move <alias> [<a/b/c>] | model favorite <alias> [--off] | model delete <alias> | model import <file.gguf|dir>... [--mmproj <file>] [--move] [--allow-duplicate] [--check]",
+		"category":   "usage: llamaherd category create|delete <a/b/c> | category rename <a/b/c> <new-name>",
+		"version":    "usage: llamaherd version          # print the version and exit",
 	}
 	return m[sub]
 }
@@ -158,31 +182,10 @@ func subcommandUsage(sub string) string {
 func ctl(args []string) int {
 	body, status, err := ctlRequest(args)
 	if err != nil {
-		// Try spawning the headless daemon once, then retry.
-		fmt.Fprintln(os.Stderr, "ctl: control API not reachable, starting headless daemon...")
-		cmd := exec.Command(daemonSelf(), "daemon")
-		cmd.SysProcAttr = daemonSysProcAttr()
-		cmd.Stdout = nil
-		cmd.Stderr = nil
-		if err := cmd.Start(); err != nil {
-			fmt.Fprintln(os.Stderr, "ctl: cannot start daemon:", err)
-		}
-		started := false
-		deadline := time.Now().Add(15 * time.Second)
-		for time.Now().Before(deadline) {
-			conn, derr := net.DialTimeout("tcp", api.Addr(), 300*time.Millisecond)
-			if derr == nil {
-				conn.Close()
-				started = true
-				break
-			}
-			time.Sleep(300 * time.Millisecond)
-		}
-		if !started {
-			fmt.Fprintln(os.Stderr, "ctl: daemon did not come up within 15s")
+		if derr := ensureDaemon(); derr != nil {
+			fmt.Fprintln(os.Stderr, "ctl: "+derr.Error())
 			return 1
 		}
-		time.Sleep(500 * time.Millisecond)
 		body, status, err = ctlRequest(args)
 	}
 	if err != nil {
@@ -202,9 +205,15 @@ func ctlRequest(args []string) ([]byte, int, error) {
 	sub := args[0]
 	switch sub {
 	case "list":
+		fs := flag.NewFlagSet("list", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		jsonOut := fs.Bool("json", false, "machine-readable output")
+		if err := fs.Parse(args[1:]); err != nil {
+			return nil, 2, err
+		}
 		substr := ""
-		if len(args) > 1 {
-			substr = args[1]
+		if rest := fs.Args(); len(rest) > 0 {
+			substr = rest[0]
 		}
 		data, status, err := get("/models")
 		if err != nil {
@@ -217,6 +226,9 @@ func ctlRequest(args []string) ([]byte, int, error) {
 			Models []schema.Model `json:"models"`
 		}
 		_ = json.Unmarshal(data, &mm) // best effort: an unparsable body yields no aliases
+		if *jsonOut {
+			return listJSON(mm.Models, substr)
+		}
 		var out []string
 		for _, m := range mm.Models {
 			if m.IsMMProj {
@@ -243,7 +255,22 @@ func ctlRequest(args []string) ([]byte, int, error) {
 		}
 		return []byte(strings.Join(out, "\n")), 0, nil
 	case "status":
-		return get("/status")
+		fs := flag.NewFlagSet("status", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		summary := fs.Bool("summary", false, "human-readable one-screen summary")
+		_ = fs.Bool("json", false, "JSON output (default)")
+		if err := fs.Parse(args[1:]); err != nil {
+			return nil, 2, err
+		}
+		data, status, err := get("/status")
+		if err != nil || status >= 400 || !*summary {
+			return data, status, err
+		}
+		txt, err := statusSummary(data)
+		if err != nil {
+			return nil, 1, err
+		}
+		return []byte(txt), 0, nil
 	case "open":
 		fs := flag.NewFlagSet("open", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
@@ -259,6 +286,42 @@ func ctlRequest(args []string) ([]byte, int, error) {
 		return post("/open", map[string]string{"alias": alias, "preset": *preset})
 	case "stop":
 		return post("/stop", map[string]any{})
+	case "restart":
+		return post("/restart", map[string]any{})
+	case "rescan":
+		return post("/rescan", map[string]any{})
+	case "bench":
+		if len(args) > 1 {
+			switch args[1] {
+			case "list":
+				return get("/benchmarks")
+			case "clear":
+				return post("/benchmarks/clear", map[string]any{})
+			}
+		}
+		data, status, err := post("/benchmark", map[string]any{})
+		if err != nil || status >= 400 {
+			return data, status, err
+		}
+		var r struct {
+			OK     bool             `json:"ok"`
+			Error  string           `json:"error"`
+			Result schema.Benchmark `json:"result"`
+		}
+		if json.Unmarshal(data, &r) != nil {
+			return data, status, nil
+		}
+		if !r.OK {
+			msg := r.Error
+			if msg == "" {
+				msg = string(data)
+			}
+			return []byte(msg), 400, nil
+		}
+		b := r.Result
+		return []byte(fmt.Sprintf(
+			"%s [%s]  generation %.1f tok/s · prompt %.1f tok/s · ctx %d · -ngl %s · peak VRAM %d MB",
+			b.Model, b.Preset, b.GenTokS, b.PromptTokS, b.Context, b.GPULayers, b.PeakVRAMMB)), 0, nil
 	case "save":
 		return post("/save", map[string]any{})
 	case "load":
@@ -268,10 +331,26 @@ func ctlRequest(args []string) ([]byte, int, error) {
 	case "category":
 		return libraryCategoryRequest(args)
 	case "config":
-		if len(args) < 3 {
-			return []byte("config add|update|remove|rename required"), 400, nil
+		if len(args) < 2 {
+			return []byte("config add|update|remove|rename|reset|export required"), 400, nil
 		}
 		action := args[1]
+		if action == "export" {
+			return get("/config/export")
+		}
+		if action == "autofit" {
+			return post("/config/autofit", map[string]any{})
+		}
+		if action == "reset" {
+			name := ""
+			if len(args) >= 3 {
+				name = args[2]
+			}
+			return post("/config/reset", map[string]string{"name": name})
+		}
+		if len(args) < 3 {
+			return []byte("config add|update|remove|rename|reset required"), 400, nil
+		}
 		var req struct {
 			Alias  string         `json:"alias"`
 			Name   string         `json:"name"`
@@ -339,6 +418,14 @@ func ctlRequest(args []string) ([]byte, int, error) {
 			return post("/config/rename", map[string]string{
 				"alias": args[2], "name": args[3], "newName": args[4],
 			})
+		case "reset":
+			name := ""
+			if len(args) >= 3 {
+				name = args[2]
+			}
+			return post("/config/reset", map[string]string{"name": name})
+		case "export":
+			return get("/config/export")
 		}
 		return []byte("unknown config subcommand"), 400, nil
 	}
@@ -399,6 +486,12 @@ func applySet(cfg *schema.Config, kv string) error {
 			cfg.Basic.Jinja = boolVal(val)
 		case "reasoningfmt":
 			cfg.Basic.ReasoningFmt = val
+		case "reasoningbudget":
+			n, err := strconv.Atoi(val)
+			if err != nil {
+				return err
+			}
+			cfg.Basic.ReasoningBudget = n
 		default:
 			return fmt.Errorf("unknown basic field %q", r)
 		}
@@ -647,8 +740,41 @@ func libraryModelRequest(args []string) ([]byte, int, error) {
 			path = splitCategory(strings.Join(args[3:], " "))
 		}
 		return post("/model/category", map[string]any{"model": args[2], "category": path})
+	case "delete":
+		if len(args) < 3 {
+			return nil, 2, errors.New("usage: llamaherd model delete <alias>")
+		}
+		return post("/model/delete", map[string]string{"model": args[2]})
+	case "import":
+		req, check, err := parseImportArgs(args[2:])
+		if err != nil {
+			return nil, 2, err
+		}
+		if check {
+			data, status, err := post("/model/import/check", req)
+			if err != nil || status >= 400 {
+				return data, status, err
+			}
+			return importCheckSummary(data)
+		}
+		data, status, err := post("/model/import", req)
+		if err != nil || status >= 400 {
+			return data, status, err
+		}
+		return importReportSummary(data)
+	case "favorite":
+		if len(args) < 3 {
+			return nil, 2, errors.New("usage: llamaherd model favorite <alias> [--off]")
+		}
+		fav := true
+		for _, a := range args[3:] {
+			if a == "--off" || a == "off" {
+				fav = false
+			}
+		}
+		return post("/model/favorite", map[string]any{"model": args[2], "favorite": fav})
 	}
-	return nil, 2, errors.New("usage: llamaherd model rename|move <alias> (see llamaherd help)")
+	return nil, 2, errors.New("usage: llamaherd model rename|move|favorite|delete <alias> (see llamaherd help)")
 }
 
 // libraryCategoryRequest handles `category create|rename|delete`.
@@ -669,4 +795,344 @@ func libraryCategoryRequest(args []string) ([]byte, int, error) {
 		return post("/category/rename", map[string]any{"path": path, "name": args[3]})
 	}
 	return nil, 2, errors.New("usage: llamaherd category create|rename|delete <a/b/c> (see llamaherd help)")
+}
+
+// ---- logs ----
+
+type logsResponse struct {
+	Lines   []string `json:"lines"`
+	Next    int64    `json:"next"`
+	Path    string   `json:"path"`
+	Enabled bool     `json:"enabled"`
+}
+
+func fetchLogs(tail int, after int64) (logsResponse, error) {
+	path := "/logs?tail=" + strconv.Itoa(tail)
+	if after >= 0 {
+		path += "&after=" + strconv.FormatInt(after, 10)
+	}
+	data, status, err := get(path)
+	if err != nil {
+		return logsResponse{}, err
+	}
+	if status >= 400 {
+		return logsResponse{}, fmt.Errorf("%s", strings.TrimSpace(string(data)))
+	}
+	var r logsResponse
+	if err := json.Unmarshal(data, &r); err != nil {
+		return logsResponse{}, err
+	}
+	return r, nil
+}
+
+// runLogsCLI implements `llamaherd logs [-f] [--tail n]`.
+func runLogsCLI(args []string) int {
+	fs := flag.NewFlagSet("logs", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	follow := fs.Bool("f", false, "follow new lines")
+	fs.BoolVar(follow, "follow", false, "follow new lines")
+	tail := fs.Int("tail", 200, "number of lines to show")
+	if err := fs.Parse(args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, subcommandUsage("logs"))
+		return 2
+	}
+	if *tail < 0 {
+		fmt.Fprintln(os.Stderr, "logs: --tail must be >= 0")
+		return 2
+	}
+	if *follow && *tail > 20 {
+		*tail = 20 // follow mode starts small, then streams
+	}
+	r, err := fetchLogs(*tail, -1)
+	if err != nil {
+		if derr := ensureDaemon(); derr != nil {
+			fmt.Fprintln(os.Stderr, "logs: "+derr.Error())
+			return 1
+		}
+		if r, err = fetchLogs(*tail, -1); err != nil {
+			fmt.Fprintln(os.Stderr, "logs: "+err.Error())
+			return 1
+		}
+	}
+	for _, line := range r.Lines {
+		fmt.Println(line)
+	}
+	if !*follow {
+		return 0
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	next := r.Next
+	for {
+		select {
+		case <-ctx.Done():
+			return 0
+		case <-time.After(time.Second):
+		}
+		r, err := fetchLogs(0, next)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "logs: "+err.Error())
+			continue
+		}
+		for _, line := range r.Lines {
+			fmt.Println(line)
+		}
+		next = r.Next
+	}
+}
+
+// ---- list --json ----
+
+type listJSONRow struct {
+	Alias    string   `json:"alias"`
+	Display  string   `json:"display"`
+	Path     string   `json:"path"`
+	IsMMProj bool     `json:"isMMProj"`
+	Presets  []string `json:"presets"`
+}
+
+func listJSON(models []schema.Model, substr string) ([]byte, int, error) {
+	needle := strings.ToLower(strings.TrimSpace(substr))
+	rows := make([]listJSONRow, 0, len(models))
+	for _, m := range models {
+		if needle != "" &&
+			!strings.Contains(strings.ToLower(m.Alias), needle) &&
+			!strings.Contains(strings.ToLower(m.Display), needle) &&
+			!strings.Contains(strings.ToLower(m.Path), needle) {
+			continue
+		}
+		names := []string{}
+		if !m.IsMMProj {
+			pdata, st, err := get("/presets?alias=" + m.Alias)
+			if err == nil && st < 400 {
+				var pp struct {
+					Presets []schema.Preset `json:"presets"`
+				}
+				if json.Unmarshal(pdata, &pp) == nil {
+					for _, p := range pp.Presets {
+						names = append(names, p.Name)
+					}
+				}
+			}
+		}
+		rows = append(rows, listJSONRow{
+			Alias: m.Alias, Display: m.Display, Path: m.Path,
+			IsMMProj: m.IsMMProj, Presets: names,
+		})
+	}
+	data, err := json.MarshalIndent(map[string]any{"models": rows}, "", "  ")
+	return data, 0, err
+}
+
+// ---- status --summary ----
+
+func statusSummary(data []byte) (string, error) {
+	var s struct {
+		Status         string   `json:"status"`
+		Alias          string   `json:"alias"`
+		Dirty          bool     `json:"dirty"`
+		PresetNames    []string `json:"presetNames"`
+		SelectedPreset int      `json:"selectedPreset"`
+		Warning        string   `json:"warning"`
+		Server         struct {
+			Model     string `json:"model"`
+			Context   string `json:"context"`
+			GPULayers string `json:"gpuLayers"`
+			Listen    string `json:"listen"`
+			TokPerSec string `json:"tokPerSec"`
+			VRAM      string `json:"vram"`
+			CPURAM    string `json:"cpuRam"`
+			Uptime    string `json:"uptime"`
+		} `json:"server"`
+		Download struct {
+			Active  bool    `json:"active"`
+			File    string  `json:"file"`
+			Percent float64 `json:"percent"`
+		} `json:"download"`
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	status := s.Status
+	if status == "" {
+		status = "unknown"
+	}
+	fmt.Fprintf(&b, "status:  %s\n", status)
+	if s.Alias != "" {
+		preset := ""
+		if s.SelectedPreset >= 0 && s.SelectedPreset < len(s.PresetNames) {
+			preset = s.PresetNames[s.SelectedPreset]
+		}
+		dirty := ""
+		if s.Dirty {
+			dirty = " (unsaved changes)"
+		}
+		fmt.Fprintf(&b, "model:   %s [%s]%s\n", s.Alias, preset, dirty)
+	}
+	if s.Server.Listen != "" {
+		parts := []string{s.Server.Listen}
+		if s.Server.Context != "" && s.Server.Context != "—" {
+			parts = append(parts, "ctx "+s.Server.Context)
+		}
+		if s.Server.GPULayers != "" && s.Server.GPULayers != "—" {
+			parts = append(parts, "ngl "+s.Server.GPULayers)
+		}
+		if s.Server.TokPerSec != "" && s.Server.TokPerSec != "—" {
+			parts = append(parts, s.Server.TokPerSec)
+		}
+		if s.Server.VRAM != "" && s.Server.VRAM != "—" {
+			parts = append(parts, "VRAM "+s.Server.VRAM)
+		}
+		if s.Server.Uptime != "" && s.Server.Uptime != "00:00:00" {
+			parts = append(parts, "up "+s.Server.Uptime)
+		}
+		fmt.Fprintf(&b, "server:  %s\n", strings.Join(parts, " · "))
+	}
+	if s.Warning != "" {
+		fmt.Fprintf(&b, "warning: %s\n", s.Warning)
+	}
+	if s.Download.Active {
+		fmt.Fprintf(&b, "download: %.0f%% %s\n", s.Download.Percent, s.Download.File)
+	}
+	return strings.TrimRight(b.String(), "\n"), nil
+}
+
+// ---- shell completions ----
+
+const cliWords = "list status open stop restart rescan save load logs bench config model category download doctor daemon completion version help"
+
+func runCompletion(args []string) int {
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, subcommandUsage("completion"))
+		return 2
+	}
+	switch args[1] {
+	case "bash":
+		fmt.Printf(`# bash completion for llamaherd
+_llamaherd() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  if [ "$COMP_CWORD" -eq 1 ]; then
+    COMPREPLY=( $(compgen -W "%s" -- "$cur") )
+  fi
+}
+complete -F _llamaherd llamaherd
+`, cliWords)
+	case "zsh":
+		fmt.Printf("#compdef llamaherd\n_arguments '1:command:(%s)'\n", cliWords)
+	case "fish":
+		for _, w := range strings.Fields(cliWords) {
+			fmt.Printf("complete -c llamaherd -f -n '__fish_use_subcommand' -a %s\n", w)
+		}
+	default:
+		fmt.Fprintln(os.Stderr, subcommandUsage("completion"))
+		return 2
+	}
+	return 0
+}
+
+const importUsage = "usage: llamaherd model import <file.gguf|dir>... [--mmproj <file.gguf>] [--move] [--allow-duplicate] [--check]"
+
+// parseImportArgs reads `model import` arguments; flags may appear anywhere
+// between the paths. Paths are made absolute because the daemon may run in a
+// different working directory.
+func parseImportArgs(args []string) (req map[string]any, check bool, err error) {
+	var paths []string
+	var mmproj string
+	var move, allowDup bool
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--move":
+			move = true
+		case arg == "--allow-duplicate":
+			allowDup = true
+		case arg == "--check":
+			check = true
+		case arg == "--mmproj":
+			if i+1 >= len(args) {
+				return nil, false, errors.New(importUsage)
+			}
+			i++
+			mmproj = args[i]
+		case strings.HasPrefix(arg, "--mmproj="):
+			mmproj = strings.TrimPrefix(arg, "--mmproj=")
+		case strings.HasPrefix(arg, "-"):
+			return nil, false, fmt.Errorf("unknown flag %s\n%s", arg, importUsage)
+		default:
+			abs, err := filepath.Abs(arg)
+			if err != nil {
+				return nil, false, err
+			}
+			paths = append(paths, abs)
+		}
+	}
+	if len(paths) == 0 {
+		return nil, false, errors.New(importUsage)
+	}
+	if mmproj != "" {
+		if mmproj, err = filepath.Abs(mmproj); err != nil {
+			return nil, false, err
+		}
+	}
+	return map[string]any{
+		"paths": paths, "mmproj": mmproj, "move": move, "allowDuplicate": allowDup,
+	}, check, nil
+}
+
+// importReportSummary prints one line per imported file; any failure makes the
+// command exit non-zero.
+func importReportSummary(data []byte) ([]byte, int, error) {
+	var r struct {
+		OK     bool                `json:"ok"`
+		Error  string              `json:"error"`
+		Report schema.ImportReport `json:"report"`
+	}
+	if json.Unmarshal(data, &r) != nil {
+		return data, 0, nil
+	}
+	var b strings.Builder
+	failed := 0
+	for _, it := range r.Report.Items {
+		switch it.Status {
+		case "imported":
+			fmt.Fprintf(&b, "imported   %s  (%s)\n", it.Alias, it.Source)
+		case "duplicate":
+			fmt.Fprintf(&b, "skipped    %s: %s\n", it.Source, it.Message)
+		default:
+			failed++
+			fmt.Fprintf(&b, "error      %s: %s\n", it.Source, it.Message)
+		}
+	}
+	if r.Error != "" {
+		failed++
+		b.WriteString(r.Error + "\n")
+	}
+	status := 0
+	if failed > 0 || !r.OK {
+		status = 400
+	}
+	return []byte(strings.TrimRight(b.String(), "\n")), status, nil
+}
+
+// importCheckSummary prints the duplicate preview of `model import --check`.
+func importCheckSummary(data []byte) ([]byte, int, error) {
+	var r struct {
+		Checks []schema.ImportCheck `json:"checks"`
+	}
+	if json.Unmarshal(data, &r) != nil {
+		return data, 0, nil
+	}
+	var b strings.Builder
+	for _, c := range r.Checks {
+		switch {
+		case c.Error != "":
+			fmt.Fprintf(&b, "error      %s: %s\n", c.Path, c.Error)
+		case c.Duplicate:
+			fmt.Fprintf(&b, "duplicate  %s: already imported as %s\n", c.Path, c.ExistingAlias)
+		default:
+			fmt.Fprintf(&b, "new        %s\n", c.Path)
+		}
+	}
+	return []byte(strings.TrimRight(b.String(), "\n")), 0, nil
 }

@@ -15,12 +15,17 @@ import (
 // download runs in the background and reports via Snapshot.Download /
 // GET /download.
 func (a *App) StartDownload(ref, file, visionFile, mtpFile string) error {
-	repo, embedded := hf.ParseRef(ref)
+	repo, embedded, err := hf.ParseRef(ref)
+	if err != nil {
+		return err
+	}
 	if file == "" {
 		file = embedded
 	}
-	if repo == "" {
-		return fmt.Errorf("a Hugging Face repo (owner/name) is required")
+	if file != "" {
+		if file, err = hf.ValidateFileRef(file); err != nil {
+			return err
+		}
 	}
 	a.dlMu.Lock()
 	if a.dl.Active {

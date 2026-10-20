@@ -29,3 +29,6 @@ func checkDisk() Check {
 }
 
 func bytesGiB(b uint64) string { return fmt.Sprintf("%.1f GiB", float64(b)/(1<<30)) }
+
+// DiskFree reports the free and total bytes of the volume holding path.
+func DiskFree(path string) (free, total uint64, ok bool) { return diskFree(path) }

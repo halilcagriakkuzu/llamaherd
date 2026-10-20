@@ -22,12 +22,20 @@ func (a *App) SnapshotJSON() ([]byte, error) {
 
 // Models returns the merged model list (api.Control).
 func (a *App) Models() []schema.Model {
-	return a.models
+	a.stateMu.RLock()
+	defer a.stateMu.RUnlock()
+	out := append([]schema.Model(nil), a.models...)
+	for i := range out {
+		out[i].Category = append([]string(nil), out[i].Category...)
+	}
+	return out
 }
 
 // Presets returns the named presets of an alias (api.Control).
 func (a *App) Presets(alias string) []schema.Preset {
-	return a.presetList(alias)
+	a.stateMu.RLock()
+	defer a.stateMu.RUnlock()
+	return append([]schema.Preset(nil), a.presetList(alias)...)
 }
 
 // SelectModelByAlias selects the loadable model whose alias equals the given
@@ -37,6 +45,19 @@ func (a *App) SelectModelByAlias(alias string) error {
 	if alias == "" {
 		return nil // keep current selection
 	}
+	idx, err := a.resolveModelAlias(alias)
+	if err != nil {
+		return err
+	}
+	a.SelectModel(idx)
+	return nil
+}
+
+// resolveModelAlias maps an alias/substring to a model index under the state
+// lock. It is the shared lookup behind SelectModelByAlias and Open.
+func (a *App) resolveModelAlias(alias string) (int, error) {
+	a.stateMu.RLock()
+	defer a.stateMu.RUnlock()
 	exact, fuzzy := -1, -1
 	count := 0
 	for i, m := range a.models {
@@ -55,15 +76,13 @@ func (a *App) SelectModelByAlias(alias string) error {
 	}
 	switch {
 	case exact >= 0:
-		a.SelectModel(exact)
-		return nil
+		return exact, nil
 	case count == 1:
-		a.SelectModel(fuzzy)
-		return nil
+		return fuzzy, nil
 	case count == 0:
-		return fmt.Errorf("no model alias matching %q (use `llamaherd list`)", alias)
+		return -1, fmt.Errorf("no model alias matching %q (use `llamaherd list`)", alias)
 	default:
-		return fmt.Errorf("alias %q is ambiguous (%d matches); use a longer string", alias, count)
+		return -1, fmt.Errorf("alias %q is ambiguous (%d matches); use a longer string", alias, count)
 	}
 }
 
@@ -76,18 +95,32 @@ func (a *App) Open(alias, preset string) error {
 		}
 	}
 	if preset != "" {
-		if a.findPreset(a.alias(), preset) == nil {
-			return fmt.Errorf("no preset %q for alias %s (use `llamaherd list %s`)", preset, a.alias(), a.alias())
+		a.stateMu.Lock()
+		curAlias := a.alias()
+		if a.findPreset(curAlias, preset) == nil {
+			a.stateMu.Unlock()
+			return fmt.Errorf("no preset %q for alias %s (use `llamaherd list %s`)", preset, curAlias, curAlias)
 		}
 		a.applyPreset(a.presetIndex(preset))
 		a.dirty = false
-		a.Log(fmt.Sprintf("ctl: preset %s/%s", a.alias(), preset))
+		a.stateMu.Unlock()
+		a.Log(fmt.Sprintf("ctl: preset %s/%s", curAlias, preset))
+		a.emitState()
 	}
-	a.Log(fmt.Sprintf("ctl: open %s [%s]", a.alias(), a.presetNames()[a.selPreset]))
+	a.stateMu.RLock()
+	curAlias, curPreset := a.alias(), ""
+	if names := a.presetNames(); len(names) > 0 {
+		curPreset = names[a.selPreset]
+	}
+	a.stateMu.RUnlock()
+	a.Log(fmt.Sprintf("ctl: open %s [%s]", curAlias, curPreset))
 	a.StartServer()
-	if a.warn != "" {
+	a.stateMu.RLock()
+	warn := a.warn
+	a.stateMu.RUnlock()
+	if warn != "" {
 		// StartServer refused (e.g. VRAM pre-flight): surface it to the caller.
-		return fmt.Errorf("%s", a.warn)
+		return fmt.Errorf("%s", warn)
 	}
 	return nil
 }
@@ -113,6 +146,8 @@ func (a *App) AddPreset(alias, name string, cfg schema.Config) error {
 	if name == "" {
 		return fmt.Errorf("preset name required")
 	}
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 	list := a.presets[alias]
 	for _, p := range list {
 		if p.Name == name {
@@ -136,18 +171,24 @@ func (a *App) AddPreset(alias, name string, cfg schema.Config) error {
 	}
 	a.Log(fmt.Sprintf("ctl: added preset %s/%s (configs/%s.json now has %d preset(s))",
 		alias, name, alias, n+1))
-	a.emitState()
+	a.emitStateLocked()
 	return nil
 }
 
-// UpdatePreset replaces the named preset's config and persists it.
+// UpdatePreset merges the supplied (possibly partial) config into the named
+// preset and persists it; omitted fields keep their current values.
 func (a *App) UpdatePreset(alias, name string, cfg schema.Config) error {
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 	list := a.presets[alias]
 	for i := range list {
 		if list[i].Name != name {
 			continue
 		}
-		list[i] = cfg.AsPreset(name)
+		// The API documents a partial update: keep every field the caller did
+		// not supply, and always keep the preset name.
+		merged := mergeConfig(list[i].AsConfig(), cfg)
+		list[i] = merged.AsPreset(name)
 		a.presets[alias] = list
 		if err := store.SaveAlias(settings.ConfigsDir(), alias, list); err != nil {
 			a.Log(fmt.Sprintf("ctl: save FAILED configs/%s.json: %v", alias, err))
@@ -159,7 +200,7 @@ func (a *App) UpdatePreset(alias, name string, cfg schema.Config) error {
 			a.applyPreset(a.selPreset)
 		}
 		a.Log(fmt.Sprintf("ctl: updated preset %s/%s (configs/%s.json)", alias, name, alias))
-		a.emitState()
+		a.emitStateLocked()
 		return nil
 	}
 	return fmt.Errorf("no preset %q for alias %s", name, alias)
@@ -175,6 +216,8 @@ func (a *App) RenamePreset(alias, oldName, newName string) error {
 	if newName == oldName {
 		return nil
 	}
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 	list := a.presets[alias]
 	idx := -1
 	for i := range list {
@@ -197,12 +240,14 @@ func (a *App) RenamePreset(alias, oldName, newName string) error {
 	}
 	a.presets[alias] = next
 	a.Log(fmt.Sprintf("ctl: renamed preset %s/%s to %s", alias, oldName, newName))
-	a.emitState()
+	a.emitStateLocked()
 	return nil
 }
 
 // RemovePreset deletes the named preset and persists the remainder.
 func (a *App) RemovePreset(alias, name string) error {
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
 	list := a.presets[alias]
 	kept := make([]schema.Preset, 0, len(list))
 	found := false
@@ -240,7 +285,7 @@ func (a *App) RemovePreset(alias, name string) error {
 		}
 	}
 	a.Log(fmt.Sprintf("ctl: removed preset %s/%s", alias, name))
-	a.emitState()
+	a.emitStateLocked()
 	return nil
 }
 
@@ -283,6 +328,9 @@ func mergeConfig(base, patch schema.Config) schema.Config {
 	}
 	if patch.Basic.ReasoningFmt != "" {
 		out.Basic.ReasoningFmt = patch.Basic.ReasoningFmt
+	}
+	if patch.Basic.ReasoningBudget != 0 {
+		out.Basic.ReasoningBudget = patch.Basic.ReasoningBudget
 	}
 	if patch.Advanced.SpecType != "" {
 		out.Advanced.SpecType = patch.Advanced.SpecType

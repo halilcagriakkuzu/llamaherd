@@ -1,6 +1,8 @@
 package store
 
 import (
+	"bufio"
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,4 +64,17 @@ func TestReadGGUFInfoErrors(t *testing.T) {
 	if _, err := ReadGGUFInfo(trunc); err == nil {
 		t.Error("truncated GGUF should error")
 	}
+}
+
+// FuzzParseGGUF makes sure untrusted GGUF headers can never panic the reader.
+// The seed corpus contains a valid header plus a few truncated/mutated shapes.
+func FuzzParseGGUF(f *testing.F) {
+	valid := ggufgen.Bytes(ggufgen.Spec{Arch: "llama", Layers: 32, Heads: 8, KVHeads: 8, Embedding: 512, ContextLength: 32768})
+	f.Add(valid)
+	f.Add([]byte("GGUF"))
+	f.Add(append([]byte("GGUF"), valid[4:20]...))
+	f.Add(append([]byte("GGUF"), bytes.Repeat([]byte{0xff}, 64)...))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		_, _ = parseGGUF(bufio.NewReader(bytes.NewReader(data)))
+	})
 }

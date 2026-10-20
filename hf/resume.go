@@ -37,7 +37,7 @@ func downloadOnce(ctx context.Context, client *http.Client, opts Options, dest, 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusPartialContent:
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Errorf("access denied for %s (set a Hugging Face token for private/gated repos)", opts.File)
+		return fmt.Errorf("%w for %s (set a Hugging Face token for private/gated repos)", ErrAccessDenied, opts.File)
 	case http.StatusNotFound:
 		return fmt.Errorf("file not found: %s/%s", opts.Repo, opts.File)
 	default:

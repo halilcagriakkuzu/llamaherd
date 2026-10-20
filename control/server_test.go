@@ -1,8 +1,10 @@
 package control
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"llamaherd/schema"
 )
@@ -44,6 +46,49 @@ func TestBuildArgsDraftModel(t *testing.T) {
 	})
 	if !strings.Contains(mtp, "--spec-type draft-mtp") || strings.Contains(mtp, "--spec-draft-model") {
 		t.Fatalf("draft-mtp args = %s", mtp)
+	}
+}
+
+// TestBuildArgsReasoningBudget checks the bonus wiring: 0 = flag omitted,
+// non-zero (including -1) is emitted.
+func TestBuildArgsReasoningBudget(t *testing.T) {
+	joined := func(n int) string {
+		return strings.Join(BuildArgs(schema.Config{Basic: schema.Basic{Model: "m.gguf", ReasoningBudget: n}}), " ")
+	}
+	if got := joined(0); strings.Contains(got, "--reasoning-budget") {
+		t.Errorf("0 must omit the flag: %s", got)
+	}
+	if got := joined(2048); !strings.Contains(got, "--reasoning-budget 2048") {
+		t.Errorf("positive budget missing: %s", got)
+	}
+	if got := joined(-1); !strings.Contains(got, "--reasoning-budget -1") {
+		t.Errorf("negative budget missing: %s", got)
+	}
+}
+
+// TestAwaitHealthTimedOutMarksFailed verifies the new terminal state: a spawn
+// that never answers /health becomes "failed" instead of hanging in "starting".
+func TestAwaitHealthTimedOutMarksFailed(t *testing.T) {
+	old := healthTimeout
+	healthTimeout = 50 * time.Millisecond
+	defer func() { healthTimeout = old }()
+
+	m := NewManager("/bin/true")
+	m.status = StatusStarting
+	m.listen = "127.0.0.1:1" // nothing listens here
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.awaitHealth(ctx, "127.0.0.1", 1, time.Now())
+	if got := m.Info().Status; got != StatusFailed {
+		t.Fatalf("status = %s, want failed", got)
+	}
+	// A late Stop is still allowed (the process may be alive).
+	m.cancel = func() {}
+	if err := m.Stop(); err != nil {
+		t.Fatalf("Stop on failed = %v", err)
+	}
+	if got := m.Info().Status; got != StatusStopping {
+		t.Fatalf("status after Stop = %s, want stopping", got)
 	}
 }
 

@@ -20,13 +20,22 @@ Written by the first-run dialog; editable by hand.
   "llamaBuildDir": "build",
   "modelsDir": "/data/models",
   "apiPort": "8517",
-  "apiToken": ""
+  "apiToken": "",
+  "logFile": ""
 }
 ```
+
+`logFile` is the rotating app/server log (5 MiB per file, 3 backups). Set it to `"off"` to
+disable writing logs to disk; the in-memory log view and `GET /logs` keep working.
 
 The file is written with `0600` permissions (it can hold the API token). On Windows,
 `serverBin` may be `wsl:<distro>:/path/to/llama-server`
 ([windows-and-wsl.md](windows-and-wsl.md)).
+
+`apiToken` is generated automatically the first time an existing config is used (and when
+the first-run setup saves one), so the loopback control API is authenticated by default.
+The CLI reads the same value. Set it to `"off"` to keep the API open to local tools, or
+override it with `LLAMAHERD_API_TOKEN`.
 
 ## Environment variables
 
@@ -38,6 +47,8 @@ The file is written with `0600` permissions (it can hold the API token). On Wind
 | `LLAMAHERD_API_PORT`, `LLAMAHERD_API_TOKEN` | loopback control API port (default `8517`) and optional bearer token |
 | `LLAMAHERD_CONFIG` | config-file path |
 | `LLAMAHERD_DATA_DIR`, `LLAMAHERD_CONFIGS_DIR`, `LLAMAHERD_LIBRARY_DIR` | where `configs/` and `library/` live |
+| `LLAMAHERD_BENCH_DIR` | where stored benchmark results live (default `<data dir>/benchmarks`) |
+| `LLAMAHERD_LOG_FILE` | rotating log path (default `<data dir>/logs/llamaherd.log`; `off` disables it) |
 | `LLAMAHERD_MIN_LLAMA_BUILD` | minimum llama.cpp build that `doctor` accepts |
 | `LLAMAHERD_CATALOG_URL` | model-catalog source (default: `hf/catalog.json` on the repo's `main` branch; `off` disables the network refresh) |
 | `HF_TOKEN`, `HUGGING_FACE_HUB_TOKEN`, `HF_ENDPOINT` | Hugging Face token / mirror |
@@ -69,6 +80,7 @@ Per-model metadata, created automatically:
 | `name`, `alias` | optional display-name / alias overrides (set from the UI, CLI or API) |
 | `mmproj`, `mtp`, `mtpDraft` | vision sidecar, embedded MTP head, separate MTP draft |
 | `source` | where the model came from (e.g. a Hugging Face repo) |
+| `provenance` | for downloads: the Hugging Face `repo`, its `url` and the `license` it declared at download time (informational; never checked again) |
 
 `library/_categories.json` holds category folders that exist without models. Renaming,
 moving and categorising never touches the `.gguf` files. The `id` is always derived from
