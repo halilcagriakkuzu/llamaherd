@@ -319,6 +319,8 @@ warn before starting a gated model.
 
 ## T11 — Download queue with pause/resume/retry
 
+**Status:** ✅ done (2026-10-21).
+
 **Why:** one download at a time; starting another fails, and there is no
 queue or retry.
 
@@ -346,6 +348,8 @@ state, `hf/download.go`, `api/api.go`, `cli.go`, `frontend/dist/*`, tests.
 
 ## T12 — Multi-part GGUF downloads
 
+**Status:** ✅ done (2026-10-21).
+
 **Why:** repo listings show multi-part sets but the buttons are disabled.
 
 **Scope**
@@ -370,6 +374,8 @@ state, `hf/download.go`, `api/api.go`, `cli.go`, `frontend/dist/*`, tests.
 ---
 
 ## T13 — Top bar/menu refresh + in-app notifications
+
+**Status:** ✅ done (2026-10-21).
 
 **Why:** the header is getting crowded (Start/Stop/Restart/Chat/theme) and
 action results are scattered between toasts and logs.
@@ -396,6 +402,8 @@ action results are scattered between toasts and logs.
 ---
 
 ## T14 — OS notifications for ready/crash/download
+
+**Status:** ✅ done (2026-10-21).
 
 **Why:** users minimize the app while a model loads or a download runs.
 
@@ -424,6 +432,8 @@ frontend settings UI, docs.
 
 ## T15 — Non-NVIDIA GPU support
 
+**Status:** ✅ done (2026-10-21).
+
 **Why:** only `nvidia-smi` is probed; AMD/Intel/Apple machines should degrade
 cleanly and, where possible, show real numbers.
 
@@ -450,6 +460,8 @@ cleanly and, where possible, show real numbers.
 
 ## T16 — Benchmark `/metrics` counters
 
+**Status:** ✅ done (2026-10-21).
+
 **Why:** the benchmark table only stores tok/s and VRAM; llama-server exposes
 prompt-eval, slots and queue depth via `/metrics`.
 
@@ -473,6 +485,8 @@ prompt-eval, slots and queue depth via `/metrics`.
 ---
 
 ## T17 — Benchmark export (CSV/JSON)
+
+**Status:** ✅ done (2026-10-21).
 
 **Why:** results are useful outside the app (spreadsheets, issue reports).
 
