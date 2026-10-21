@@ -27,6 +27,10 @@ type Control interface {
 	StartDownload(ref, file, visionFile, mtpFile string) error
 	RepoFilesJSON(ref string) ([]byte, error)
 	CancelDownload() error
+	PauseDownload() error
+	ResumeDownload() error
+	RetryDownload() error
+	RemoveQueuedDownload(id string) error
 	SetHFToken(token string) error
 	Models() []schema.Model
 	Presets(alias string) []schema.Preset
@@ -181,6 +185,33 @@ func Handler(c Control) http.Handler {
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("POST /download/pause", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.PauseDownload(); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("POST /download/resume", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.ResumeDownload(); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("POST /download/retry", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.RetryDownload(); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("POST /download/queue", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID string `json:"id"`
+		}
+		decodeAndRun(w, r, &req, func() error { return c.RemoveQueuedDownload(req.ID) })
 	})
 	mux.HandleFunc("POST /token", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

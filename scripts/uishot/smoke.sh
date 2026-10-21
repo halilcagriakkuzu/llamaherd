@@ -56,8 +56,8 @@ run_case() {
 }
 
 fail=0
-run_case "running: models, benchmark table, import dialog" \
-  "selftest=main&status=running" "SELFTEST PASS" || fail=1
+run_case "running: models, benchmark table, import dialog, download queue" \
+  "selftest=main&status=running&dl=1" "SELFTEST PASS" || fail=1
 run_case "failed: not-responding banner and actions" \
   "selftest=failed&status=failed" "SELFTEST PASS" || fail=1
 

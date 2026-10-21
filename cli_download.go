@@ -28,7 +28,7 @@ func runDownload(args []string) int {
 		printCatalog(all)
 		return 0
 	case "help", "-h", "--help":
-		fmt.Println("usage: llamaherd download list | files <ref> | <ref> [<file>] [--vision <file>|--no-vision] [--mtp <file>|--no-mtp] | status|cancel | token [<t>|--clear]")
+		fmt.Println("usage: llamaherd download list | files <ref> | <ref> [<file>] [--vision <file>|--no-vision] [--mtp <file>|--no-mtp] | status|queue [rm <id>]|pause|resume|retry|cancel | token [<t>|--clear]")
 		return 0
 	case "files":
 		return downloadFiles(args[2:])
@@ -36,6 +36,14 @@ func runDownload(args []string) int {
 		return downloadToken(args[2:])
 	case "status":
 		return downloadStatus()
+	case "queue":
+		return downloadQueue(args[2:])
+	case "pause":
+		return downloadSimple("/download/pause", "paused")
+	case "resume":
+		return downloadSimple("/download/resume", "resumed")
+	case "retry":
+		return downloadSimple("/download/retry", "retry queued")
 	case "cancel":
 		return downloadCancel()
 	default:
@@ -167,6 +175,72 @@ func downloadCancel() int {
 		return 1
 	}
 	fmt.Println("cancel requested")
+	return 0
+}
+
+// downloadQueue lists waiting jobs, or removes one with `queue rm <id>`.
+func downloadQueue(args []string) int {
+	if err := ensureDaemon(); err != nil {
+		fmt.Fprintln(os.Stderr, "download: "+err.Error())
+		return 1
+	}
+	if len(args) > 0 && args[0] == "rm" {
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: llamaherd download queue rm <id>")
+			return 2
+		}
+		return downloadSimple("/download/queue", "removed "+args[1], map[string]any{"id": args[1]})
+	}
+	body, _, err := get("/download")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "download: "+err.Error())
+		return 1
+	}
+	var st dlState
+	if err := json.Unmarshal(body, &st); err != nil {
+		fmt.Fprintln(os.Stderr, "download: "+err.Error())
+		return 1
+	}
+	if st.Active {
+		fmt.Printf("active  %-12s %s/%s  %.1f%%\n", st.CurrentID, st.Repo, st.File, st.Percent)
+	} else if st.Status == "paused" {
+		fmt.Printf("paused  %-12s %s/%s\n", st.CurrentID, st.Repo, st.File)
+	}
+	if len(st.Queue) == 0 {
+		fmt.Println("queue empty")
+		return 0
+	}
+	for i, q := range st.Queue {
+		fmt.Printf("%3d  %-12s %-11s %s/%s\n", i+1, q.ID, q.Status, q.Repo, q.File)
+	}
+	return 0
+}
+
+// downloadSimple posts one queue-control command.
+func downloadSimple(path, okMsg string, body ...map[string]any) int {
+	if err := ensureDaemon(); err != nil {
+		fmt.Fprintln(os.Stderr, "download: "+err.Error())
+		return 1
+	}
+	var payload any = map[string]any{}
+	if len(body) > 0 {
+		payload = body[0]
+	}
+	b, _, err := post(path, payload)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "download: "+err.Error())
+		return 1
+	}
+	var r struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(b, &r)
+	if !r.OK {
+		fmt.Fprintln(os.Stderr, "download: "+strings.TrimSpace(r.Error))
+		return 1
+	}
+	fmt.Println(okMsg)
 	return 0
 }
 

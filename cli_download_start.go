@@ -14,17 +14,26 @@ import (
 
 // dlState mirrors the App's DownloadState for CLI polling.
 type dlState struct {
-	Active   bool     `json:"active"`
-	Repo     string   `json:"repo"`
-	File     string   `json:"file"`
-	Received int64    `json:"received"`
-	Total    int64    `json:"total"`
-	Percent  float64  `json:"percent"`
-	SpeedBps float64  `json:"speedBps"`
-	Status   string   `json:"status"`
-	Error    string   `json:"error"`
-	Message  string   `json:"message"`
-	Files    []string `json:"files"`
+	Active    bool     `json:"active"`
+	CurrentID string   `json:"currentId"`
+	Paused    bool     `json:"paused"`
+	Repo      string   `json:"repo"`
+	File      string   `json:"file"`
+	Received  int64    `json:"received"`
+	Total     int64    `json:"total"`
+	Percent   float64  `json:"percent"`
+	SpeedBps  float64  `json:"speedBps"`
+	Status    string   `json:"status"`
+	Error     string   `json:"error"`
+	Message   string   `json:"message"`
+	Files     []string `json:"files"`
+	Queue     []struct {
+		ID      string `json:"id"`
+		Repo    string `json:"repo"`
+		File    string `json:"file"`
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	} `json:"queue"`
 }
 
 // ensureDaemon makes sure the control API is up, spawning the headless daemon

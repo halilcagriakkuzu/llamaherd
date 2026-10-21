@@ -164,6 +164,11 @@
     dlProgress: $("dlProgress"),
     dlBarInner: $("dlBarInner"),
     dlProgressText: $("dlProgressText"),
+    dlPause: $("dlPause"),
+    dlResume: $("dlResume"),
+    dlRetry: $("dlRetry"),
+    dlQueueWrap: $("dlQueueWrap"),
+    dlQueue: $("dlQueue"),
     dlCancel: $("dlCancel"),
     frDownload: $("frDownload")
   };
@@ -1029,18 +1034,49 @@
   function renderDownload() {
     const d = (snap && snap.download) || {};
     const active = d.active || d.status === "downloading" || d.status === "verifying";
-    if (!active && d.status !== "done" && d.status !== "error" && d.status !== "cancelled") {
+    const paused = d.paused || d.status === "paused";
+    const queue = d.queue || [];
+    if (!active && !paused && d.status !== "done" && d.status !== "error" && d.status !== "cancelled") {
       el.dlProgress.hidden = true;
-      return;
+    } else {
+      el.dlProgress.hidden = false;
+      const pct = Math.max(0, Math.min(100, d.percent || 0));
+      el.dlBarInner.style.width = pct.toFixed(1) + "%";
+      let txt = `${d.status || ""} ${d.file || ""} — ${pct.toFixed(1)}%  ${fmtBytes(d.received)}/${fmtBytes(d.total)}  ${fmtBytes(d.speedBps)}/s`;
+      if (d.error) txt = "error: " + d.error;
+      else if (d.message) txt = d.message;
+      el.dlProgressText.textContent = txt;
     }
-    el.dlProgress.hidden = false;
-    const pct = Math.max(0, Math.min(100, d.percent || 0));
-    el.dlBarInner.style.width = pct.toFixed(1) + "%";
-    let txt = `${d.status || ""} ${d.file || ""} — ${pct.toFixed(1)}%  ${fmtBytes(d.received)}/${fmtBytes(d.total)}  ${fmtBytes(d.speedBps)}/s`;
-    if (d.error) txt = "error: " + d.error;
-    else if (d.message) txt = d.message;
-    el.dlProgressText.textContent = txt;
-    el.dlCancel.hidden = !active;
+    el.dlPause.hidden = !active;
+    el.dlResume.hidden = !paused;
+    el.dlRetry.hidden = !(d.status === "error" || d.status === "cancelled");
+    el.dlCancel.hidden = !(active || paused);
+    renderDownloadQueue(queue);
+  }
+
+  function renderDownloadQueue(queue) {
+    el.dlQueue.innerHTML = "";
+    el.dlQueueWrap.hidden = queue.length === 0;
+    queue.forEach((q, i) => {
+      const row = document.createElement("div");
+      row.className = "dl-row dl-queue-row";
+      const left = document.createElement("div");
+      const name = document.createElement("div");
+      name.className = "dl-name";
+      name.textContent = q.file || q.repo;
+      const meta = document.createElement("div");
+      meta.className = "dl-meta";
+      meta.textContent = `${i + 1}. ${q.repo} · ${q.status || "queued"}${q.attempts ? " · retry" : ""}`;
+      left.append(name, meta);
+      row.appendChild(left);
+      const rm = document.createElement("button");
+      rm.className = "tiny";
+      rm.textContent = "Remove";
+      rm.title = "Remove this waiting download";
+      rm.addEventListener("click", () => call("RemoveQueuedDownload", q.id));
+      row.appendChild(rm);
+      el.dlQueue.appendChild(row);
+    });
   }
 
   // Status-bar badge: downloads keep running when the dialog is closed.
@@ -2286,6 +2322,9 @@
     // Pasting a link looks it up right away.
     el.dlRef.addEventListener("paste", () => setTimeout(() => { if (el.dlRef.value.includes("/")) findRepoFiles(); }, 0));
     el.dlCancel.addEventListener("click", () => call("CancelDownload"));
+    el.dlPause.addEventListener("click", () => call("PauseDownload"));
+    el.dlResume.addEventListener("click", () => call("ResumeDownload"));
+    el.dlRetry.addEventListener("click", () => call("RetryDownload"));
     el.dlTokenSave.addEventListener("click", () => {
       const a = app();
       if (!a) return;

@@ -603,7 +603,16 @@
       <div id="dlProgress" class="dl-progress" hidden>
         <div id="dlBarOuter"><div id="dlBarInner"></div></div>
         <div id="dlProgressText" class="dl-progress-text"></div>
-        <button id="dlCancel" class="tiny btn-stop">Cancel</button>
+        <div class="dl-progress-actions">
+          <button id="dlPause" class="tiny" title="Pause the active transfer (the partial file is kept)">Pause</button>
+          <button id="dlResume" class="tiny" hidden>Resume</button>
+          <button id="dlRetry" class="tiny" hidden>Retry</button>
+          <button id="dlCancel" class="tiny btn-stop">Cancel</button>
+        </div>
+      </div>
+      <div id="dlQueueWrap" hidden>
+        <h3 class="llama-h">Download queue</h3>
+        <div id="dlQueue" class="dl-list"></div>
       </div>
     </div>
   </div>

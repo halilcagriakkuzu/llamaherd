@@ -848,6 +848,7 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
 #dlBarOuter { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
 #dlBarInner { height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width 0.2s ease; }
 .dl-progress-text { font-size: 11.5px; color: var(--muted); margin: 8px 0; word-break: break-word; }
+.dl-progress-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
 #dlTokenBox { margin-top: 16px; font-size: 12.5px; }
 #dlTokenBox summary { cursor: pointer; color: var(--muted); }
 #dlTokenBox input { margin-top: 8px; }

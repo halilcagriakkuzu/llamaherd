@@ -13,22 +13,38 @@ import (
 	"llamaherd/settings"
 )
 
+// QueuedDownload is one download job waiting behind the active transfer.
+// Vision/MTP carry the optional sidecar choices made in the download dialog.
+type QueuedDownload struct {
+	ID       string `json:"id"`
+	Repo     string `json:"repo"`
+	File     string `json:"file"`
+	Vision   string `json:"vision,omitempty"`
+	MTP      string `json:"mtp,omitempty"`
+	Status   string `json:"status"` // queued|paused
+	Message  string `json:"message,omitempty"`
+	Attempts int    `json:"attempts,omitempty"`
+}
+
 // DownloadState is the live state of the model downloader, surfaced in the
 // Snapshot (GUI) and via GET /download (CLI/API).
 type DownloadState struct {
-	Active   bool     `json:"active"`
-	Repo     string   `json:"repo"`
-	File     string   `json:"file"`
-	Dest     string   `json:"dest"`
-	Received int64    `json:"received"`
-	Total    int64    `json:"total"`
-	Percent  float64  `json:"percent"`
-	SpeedBps float64  `json:"speedBps"`
-	Status   string   `json:"status"` // idle|downloading|verifying|done|error|cancelled
-	Error    string   `json:"error"`
-	Message  string   `json:"message"`
-	Files    []string `json:"files"`
-	Updated  string   `json:"updated"`
+	Active    bool             `json:"active"`
+	CurrentID string           `json:"currentId"`
+	Paused    bool             `json:"paused"`
+	Repo      string           `json:"repo"`
+	File      string           `json:"file"`
+	Dest      string           `json:"dest"`
+	Received  int64            `json:"received"`
+	Total     int64            `json:"total"`
+	Percent   float64          `json:"percent"`
+	SpeedBps  float64          `json:"speedBps"`
+	Status    string           `json:"status"` // idle|queued|downloading|verifying|paused|done|error|cancelled
+	Error     string           `json:"error"`
+	Message   string           `json:"message"`
+	Files     []string         `json:"files"`
+	Queue     []QueuedDownload `json:"queue"`
+	Updated   string           `json:"updated"`
 }
 
 // DownloadSnapshot returns the cached downloader state (cheap; snapshot-safe).
@@ -154,15 +170,29 @@ func (a *App) HFTokenStatus() map[string]any {
 }
 
 // CancelDownload stops an in-flight download (the .part is kept for resume).
+// When the downloader is paused, the paused job is dropped instead.
 func (a *App) CancelDownload() error {
 	a.dlMu.Lock()
 	cancel := a.dlCancel
-	a.dlMu.Unlock()
-	if cancel == nil {
-		return fmt.Errorf("no download in progress")
+	if cancel != nil {
+		a.dlPausing = false
+		a.dlMu.Unlock()
+		cancel()
+		return nil
 	}
-	cancel()
-	return nil
+	if a.dl.Status == "paused" && len(a.dl.Queue) > 0 {
+		a.dl.Queue = a.dl.Queue[1:]
+		a.dl.Status = "cancelled"
+		a.dl.Paused = false
+		a.dl.Message = "cancelled; partial file kept for resume"
+		a.dl.Updated = time.Now().Format(time.RFC3339)
+		a.dlMu.Unlock()
+		a.Log("hf: download cancelled")
+		a.emitState()
+		return nil
+	}
+	a.dlMu.Unlock()
+	return fmt.Errorf("no download in progress")
 }
 
 // totalRAMMB is the cross-platform total system RAM (control.TotalRAMMB).

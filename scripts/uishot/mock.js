@@ -68,7 +68,10 @@
       { id: "wsl", title: "WSL model access", status: "warn", detail: "models are read through /mnt/<drive> (slow first load)", fix: "keep models inside WSL" },
       { id: "models", title: "Models directory", status: "ok", detail: "5 model(s), 1 mmproj sidecar(s)" },
     ] },
-    download: params.get("dl") === "1" ? { active: true, repo: "unsloth/Qwen3.5-9B-GGUF", file: "Qwen3.5-9B-Q8_0.gguf", dest: "", received: 4100000000, total: 9520000000, percent: 43, speedBps: 38000000, status: "downloading", error: "", message: "" } : { active: false, repo: "", file: "", dest: "", received: 0, total: 0, percent: 0, speedBps: 0, status: "", error: "", message: "" },
+    download: params.get("dl") === "1" ? { active: true, currentId: "dl-1", paused: false, repo: "unsloth/Qwen3.5-9B-GGUF", file: "Qwen3.5-9B-Q8_0.gguf", dest: "", received: 4100000000, total: 9520000000, percent: 43, speedBps: 38000000, status: "downloading", error: "", message: "", queue: [
+      { id: "dl-2", repo: "unsloth/Qwen3.8-27B-GGUF", file: "Qwen3.8-27B-UD-IQ3_XXS.gguf", status: "queued", message: "" },
+      { id: "dl-3", repo: "unsloth/Ornith-1.5-9B-GGUF", file: "Ornith-1.5-9B-Q8_0.gguf", status: "queued", message: "" },
+    ] } : { active: false, currentId: "", paused: false, repo: "", file: "", dest: "", received: 0, total: 0, percent: 0, speedBps: 0, status: "", error: "", message: "", queue: [] },
   };
   const llama = { updating: false, lastUpdate: "last update: 2026-10-16 ok", info: { version: "0.7.0-dev", commit: "83f938941", describe: "b11708", commitDate: "2026-10-17", subject: "server: fix slot reuse", branch: "master", dirty: false, behind: 0, fetched: "2026-10-18 09:12", binary: "/home/me/llama.cpp/build-latest/bin/llama-server", builtAt: "2026-10-17 21:40", buildDir: "build-latest", buildType: "Release", cudaOn: true, cudaArch: "89", gpu: "NVIDIA GeForce RTX 4070 Ti SUPER", repoDir: "/home/me/llama.cpp" }, procs: running ? [{ pid: 749941, uptime: "01:23:45", listen: "127.0.0.1:8090", model: "Qwen3.8-27B-UD-IQ4_XS", managed: true, cmd: "llama-server --model /m/Qwen3.8-27B-UD-IQ4_XS.gguf --port 8090" }] : [] };
   const E = (id, name, family, quant, bytes, paramsB, extra) => Object.assign({ id, name, family, repo: "unsloth/" + family, file: name.replace(/\W+/g, "-") + ".gguf", quant, bytes, paramsB, vision: false, mtp: false }, extra || {});
@@ -171,6 +174,14 @@
 
       ok("detect button", !!byId("frBinDetect") && !!byId("pathBinDetect"));
       ok("diagnostics button", !!byId("diagCopy"));
+
+      // Download queue: two waiting jobs, pause/resume/retry controls.
+      if (byId("dlOpen")) byId("dlOpen").click();
+      ok("download queue rows", document.querySelectorAll("#dlQueue .dl-queue-row").length === 2);
+      ok("download pause button", !!byId("dlPause") && !byId("dlPause").hidden);
+      ok("download resume defined", !!byId("dlResume"));
+      ok("download remove buttons", document.querySelectorAll("#dlQueue .dl-queue-row button").length === 2);
+      if (byId("dlClose")) byId("dlClose").click();
 
       const openBtn = byId("importOpen");
       ok("import button", !!openBtn);

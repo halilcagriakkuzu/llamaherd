@@ -102,6 +102,10 @@ type App struct {
 	dlMu      sync.Mutex
 	dl        DownloadState
 	dlCancel  context.CancelFunc
+	dlWorker  bool // one queue pump goroutine at a time
+	dlPausing bool // the current transfer was cancelled by PauseDownload
+	dlSeq     int64
+	dlLast    QueuedDownload // last started job, for RetryDownload
 
 	// metricHistory is a 10-minute ring of live samples; metricsAt throttles
 	// sampling to the 5 s metrics tick.

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Download queue**: starting a second download queues it; the queue runs one job at a
+  time, supports pause/resume (continuing from the `.part` file), one retry with backoff,
+  and removing a waiting job without touching the active transfer. API:
+  `POST /download/pause`, `/download/resume`, `/download/retry`, `/download/queue`
+  (`{id}` removes a waiting job); CLI: `download queue [rm <id>]`, `download pause|resume|retry`.
+  `GET /download` and the snapshot now include `queue`, `paused` and `currentId`.
 - **Model management in the GUI**: search/filter (favorites, recently used, vision, MTP),
   pin models, rescan the models directory, reveal a model in the file manager, copy its path,
   and delete the `.gguf` (the preset file is kept).

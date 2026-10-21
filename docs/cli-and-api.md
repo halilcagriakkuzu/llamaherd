@@ -47,6 +47,7 @@ llamaherd download list [--all]            # picks for this machine (--all: the 
 llamaherd download files <owner/name>      # every .gguf of a repo with sizes (models, vision, MTP)
 llamaherd download <owner/name> <file> [--vision <f>|--no-vision] [--mtp <f>|--no-mtp]
 llamaherd download status | cancel | token [<t>|--clear]
+llamaherd download queue [rm <id>] | pause | resume | retry
 
 llamaherd doctor [--json]                  # environment check with fixes
 llamaherd version
@@ -80,6 +81,8 @@ llamaherd version
 | `POST /category/create`, `/rename`, `/delete` | `{path: [..], name?}` | category folders (delete keeps models) |
 | `POST /download` | `{ref, file, vision, mtp}` | start a download (`vision`/`mtp`: `""` = repo default, `"none"` = skip, or a file) |
 | `POST /download/cancel`, `/token` | see `api/api.go` | cancel / Hugging Face token |
+| `POST /download/pause`, `/download/resume`, `/download/retry` | — | pause the active transfer (keeps `.part`), resume it, retry the last failure once |
+| `POST /download/queue` | `{id}` | remove one waiting job; the active transfer is untouched |
 
 `model` is a file path or an alias. Mutating calls return `{"ok":true}` or
 `{"ok":false,"error":"..."}`.

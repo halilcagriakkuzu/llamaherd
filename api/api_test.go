@@ -39,7 +39,14 @@ func (f *fake) StartDownload(ref, file, vision, mtp string) error {
 func (f *fake) RepoFilesJSON(ref string) ([]byte, error) {
 	return []byte(`{"repo":"` + ref + `","models":[]}`), nil
 }
-func (f *fake) CancelDownload() error            { f.rec("cancel"); return nil }
+func (f *fake) CancelDownload() error { f.rec("cancel"); return nil }
+func (f *fake) PauseDownload() error  { f.rec("pause"); return nil }
+func (f *fake) ResumeDownload() error { f.rec("resume"); return nil }
+func (f *fake) RetryDownload() error  { f.rec("retry"); return nil }
+func (f *fake) RemoveQueuedDownload(id string) error {
+	f.rec("queue-remove:" + id)
+	return nil
+}
 func (f *fake) SetHFToken(t string) error        { f.rec("token"); return nil }
 func (f *fake) Models() []schema.Model           { return []schema.Model{{Display: "m", Alias: "a"}} }
 func (f *fake) Presets(a string) []schema.Preset { return []schema.Preset{{Name: "default"}} }
@@ -224,8 +231,13 @@ func TestDownloadEndpoints(t *testing.T) {
 		t.Errorf("missing ref = %d, want 400", code)
 	}
 	do(t, h, "POST", "/download/cancel", "", nil)
-	if got := strings.Join(f.calls, ","); got != "download:o/r|f.gguf|v.gguf|none,cancel" {
-		t.Errorf("calls = %s", got)
+	do(t, h, "POST", "/download/pause", "", nil)
+	do(t, h, "POST", "/download/resume", "", nil)
+	do(t, h, "POST", "/download/retry", "", nil)
+	do(t, h, "POST", "/download/queue", `{"id":"dl-2"}`, nil)
+	want := "download:o/r|f.gguf|v.gguf|none,cancel,pause,resume,retry,queue-remove:dl-2"
+	if got := strings.Join(f.calls, ","); got != want {
+		t.Errorf("calls = %s, want %s", got, want)
 	}
 }
 
