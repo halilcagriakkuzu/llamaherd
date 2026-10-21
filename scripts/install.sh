@@ -58,6 +58,10 @@ LLAMA_DIR="${LLAMA_DIR:-${LLAMAHERD_LLAMA_DIR:-$HOME/llama.cpp}}"
 LLAMA_BUILD_DIR="${LLAMA_BUILD_DIR:-build-latest}"
 LLAMA_BACKEND="${LLAMAHERD_LLAMA_BACKEND:-auto}"   # auto | cuda | vulkan | metal | cpu
 LLAMA_GIT_URL="${LLAMAHERD_LLAMA_GIT_URL:-https://github.com/ggml-org/llama.cpp}"
+CUDA_NVCC=""                    # nvcc chosen for the CUDA backend (set at build time)
+CUDA_BIN_DIR=""
+CUDA_ROOT=""
+BACKEND=""                      # resolved backend (auto -> cuda|cpu)
 
 # Set this to your "OWNER/REPO" so the piped one-liner needs no --repo flag:
 #   curl -fsSL .../install.sh | bash -s -- --from-release
@@ -164,7 +168,8 @@ llama.cpp (only needed when no llama-server is found):
   --install-llamacpp     clone llama.cpp and build it (installs git/cmake/toolchain)
   --llama-dir DIR        checkout to reuse or build (default: ~/llama.cpp)
   --llama-build-dir DIR  build dir inside the checkout (default: build-latest)
-  --llama-backend B      auto|cuda|vulkan|metal|cpu (default: auto)
+  --llama-backend B      auto|cuda|vulkan|metal|cpu (default: auto; CUDA installs
+                         the toolkit when an NVIDIA GPU is present but nvcc is not)
   --no-llamacpp          never ask about llama.cpp; leave serverBin unset
 
 Uninstall:
@@ -409,6 +414,135 @@ detect_cuda_arch() {
   [ -n "$caps" ] && printf '%s' "$caps"
 }
 
+# cuda_nvcc prints the path of an installed CUDA compiler, if any. An NVIDIA
+# driver (nvidia-smi) alone is not enough to build with CUDA.
+cuda_nvcc() {
+  if have nvcc; then command -v nvcc; return 0; fi
+  local d
+  for d in "${CUDA_HOME:-}" "${CUDA_PATH:-}" "${CUDAToolkit_ROOT:-}" \
+    /usr/local/cuda /opt/cuda /usr/local/cuda-*; do
+    [ -n "$d" ] && [ -x "$d/bin/nvcc" ] && { printf '%s' "$d/bin/nvcc"; return 0; }
+  done
+  return 0
+}
+
+# nvidia_keyring_url prints the CUDA repository keyring for this distro.
+nvidia_keyring_url() {
+  local id="" ver="" seg="" archdir=""
+  [ -r /etc/os-release ] || return 1
+  id="$(. /etc/os-release && printf '%s' "${ID:-}")"
+  ver="$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")"
+  case "$ARCH" in
+    amd64) archdir="x86_64" ;;
+    arm64) archdir="sbsa" ;;
+    *) return 1 ;;
+  esac
+  if [ "$IS_WSL" = 1 ] && [ "$id" = "ubuntu" ]; then
+    seg="wsl-ubuntu"
+  else
+    case "$id" in
+      ubuntu) seg="ubuntu${ver//./}" ;;
+      debian) seg="debian${ver%%.*}" ;;
+      *) return 1 ;;
+    esac
+  fi
+  printf 'https://developer.download.nvidia.com/compute/cuda/repos/%s/%s/cuda-keyring_1.1-1_all.deb' \
+    "$seg" "$archdir"
+}
+
+# install_cuda_toolkit installs nvcc when an NVIDIA GPU is present but no
+# toolkit is. Returns non-zero when it cannot (the caller then falls back).
+install_cuda_toolkit() {
+  local nvcc
+  nvcc="$(cuda_nvcc)"
+  [ -n "$nvcc" ] && return 0
+  if [ "$DEPS" = "no" ]; then
+    warn "the CUDA toolkit (nvcc) is missing and --no-deps was given"
+    return 1
+  fi
+
+  warn "NVIDIA GPU detected, but the CUDA toolkit (nvcc) is not installed"
+  info "installing it; this is a large download (several GB)"
+  local SUDO=""
+  [ "$(id -u)" -ne 0 ] && SUDO="sudo"
+  if [ -n "$SUDO" ] && ! have sudo; then
+    warn "sudo not found; install the CUDA toolkit as root, then re-run"
+    return 1
+  fi
+
+  if have apt-get; then
+    local url deb
+    url="$(nvidia_keyring_url || true)"
+    if [ -n "$url" ]; then
+      log "Adding the NVIDIA CUDA repository"
+      deb="$(mktemp -d)/cuda-keyring.deb"
+      if download_file "$url" "$deb" &&
+        run $SUDO dpkg -i "$deb" &&
+        run $SUDO apt-get update; then
+        if run $SUDO apt-get install -y cuda-toolkit && [ -n "$(cuda_nvcc)" ]; then
+          return 0
+        fi
+        warn "cuda-toolkit could not be installed from the NVIDIA repository"
+      else
+        warn "could not set up the NVIDIA CUDA repository"
+      fi
+    fi
+    # Older distro toolkit as a fallback (no extra repository needed).
+    if apt-cache show nvidia-cuda-toolkit >/dev/null 2>&1; then
+      log "Installing nvidia-cuda-toolkit from the distribution"
+      run $SUDO apt-get update || true
+      run $SUDO apt-get install -y nvidia-cuda-toolkit && [ -n "$(cuda_nvcc)" ] && return 0
+    fi
+  elif have dnf; then
+    if dnf info -q cuda-toolkit >/dev/null 2>&1; then
+      run $SUDO dnf install -y cuda-toolkit && [ -n "$(cuda_nvcc)" ] && return 0
+    else
+      info "enable the NVIDIA CUDA repository (cuda-fedora*), then install cuda-toolkit"
+    fi
+  elif have pacman; then
+    run $SUDO pacman -Sy --noconfirm cuda && [ -n "$(cuda_nvcc)" ] && return 0
+  elif have zypper; then
+    run $SUDO zypper --non-interactive install cuda-toolkit && [ -n "$(cuda_nvcc)" ] && return 0
+  fi
+  return 1
+}
+
+# resolve_llama_backend turns --llama-backend auto into cuda|cpu and, for cuda,
+# makes sure nvcc exists (installing the toolkit when it is missing).
+resolve_llama_backend() {
+  BACKEND="$LLAMA_BACKEND"
+  if [ "$BACKEND" = "auto" ]; then
+    if [ "$OS" = "linux" ] && have nvidia-smi; then
+      BACKEND="cuda"
+    else
+      BACKEND="cpu"
+    fi
+  fi
+  [ "$BACKEND" = "cuda" ] || return 0
+
+  CUDA_NVCC="$(cuda_nvcc)"
+  if [ -z "$CUDA_NVCC" ] && [ "$DRY_RUN" = 1 ]; then
+    info "CUDA toolkit (nvcc) missing; it would be installed before configuring"
+    return 0
+  fi
+  if [ -z "$CUDA_NVCC" ]; then
+    install_cuda_toolkit || true
+    CUDA_NVCC="$(cuda_nvcc)"
+  fi
+  if [ -z "$CUDA_NVCC" ]; then
+    if [ "$LLAMA_BACKEND" = "cuda" ]; then
+      die "CUDA backend requested, but the CUDA toolkit (nvcc) is still missing"
+    fi
+    warn "building without CUDA: no usable CUDA toolkit (the CPU build still works)"
+    warn "install the toolkit and re-run with --llama-backend cuda for GPU support"
+    BACKEND="cpu"
+    return 0
+  fi
+  CUDA_BIN_DIR="$(dirname "$CUDA_NVCC")"
+  CUDA_ROOT="$(dirname "$CUDA_BIN_DIR")"
+  info "CUDA toolkit: $CUDA_ROOT (nvcc $CUDA_NVCC)"
+}
+
 # install_llama_tools installs what building llama.cpp needs. Choosing the
 # source build is the consent, so it does not ask again (--no-deps still wins).
 install_llama_tools() {
@@ -481,24 +615,24 @@ build_llamacpp() {
     run git clone --depth 1 "$LLAMA_GIT_URL" "$LLAMA_DIR"
   fi
 
-  local backend="$LLAMA_BACKEND"
-  if [ "$backend" = "auto" ]; then
-    if [ "$OS" = "linux" ] && have nvidia-smi; then backend="cuda"; else backend="cpu"; fi
-  fi
+  resolve_llama_backend
   local flags=("-DCMAKE_BUILD_TYPE=Release")
   local arch=""
-  case "$backend" in
+  case "$BACKEND" in
     cuda)
       flags+=("-DGGML_CUDA=ON")
+      [ -n "$CUDA_ROOT" ] && flags+=("-DCUDAToolkit_ROOT=$CUDA_ROOT")
+      [ -n "$CUDA_NVCC" ] && flags+=("-DCMAKE_CUDA_COMPILER=$CUDA_NVCC")
       arch="$(detect_cuda_arch || true)"
       [ -n "$arch" ] && flags+=("-DCMAKE_CUDA_ARCHITECTURES=$arch")
       ;;
     vulkan) flags+=("-DGGML_VULKAN=ON") ;;
     metal) flags+=("-DGGML_METAL=ON") ;;
   esac
-  log "Backend: $backend"
+  log "Backend: $BACKEND"
 
-  run cmake -S "$LLAMA_DIR" -B "$LLAMA_BUILD_PATH" "${flags[@]}"
+  run env "PATH=$PATH${CUDA_BIN_DIR:+:$CUDA_BIN_DIR}" \
+    cmake -S "$LLAMA_DIR" -B "$LLAMA_BUILD_PATH" "${flags[@]}"
   local jobs
   jobs="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
   run cmake --build "$LLAMA_BUILD_PATH" --config Release -j"$jobs"

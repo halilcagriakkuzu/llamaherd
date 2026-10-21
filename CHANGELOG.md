@@ -5,6 +5,20 @@ All notable changes to LlamaHerd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-10-21
+
+### Fixed
+
+- **Installer CUDA detection**: `--llama-backend auto` no longer treats an NVIDIA driver as
+  a usable CUDA setup. It now requires `nvcc` (from `PATH`, `CUDA_HOME`, `CUDAToolkit_ROOT`,
+  `/usr/local/cuda*` or `/opt/cuda`) and installs the toolkit when it is missing: NVIDIA's
+  CUDA repository + `cuda-toolkit` on apt (including the WSL repo), with
+  `nvidia-cuda-toolkit`/`dnf`/`pacman`/`zypper` fallbacks. If that fails it warns and builds
+  CPU-only instead of aborting in cmake ("Could not find nvcc"). An explicit
+  `--llama-backend cuda` still fails loudly, and `--no-deps` disables the auto-install. The
+  configure step also gets `CUDAToolkit_ROOT`, `CMAKE_CUDA_COMPILER` and the toolkit's `bin`
+  on `PATH`, so a non-`PATH` CUDA install is found.
+
 ## [0.4.1] - 2026-10-21
 
 ### Added

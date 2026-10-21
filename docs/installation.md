@@ -37,7 +37,7 @@ Use `bash`, not `sh` (the installer uses bash features).
 | `--llama-server PATH` | use that `llama-server` build (no detection, no prompt) |
 | `--install-llamacpp` | clone llama.cpp and build it (installs git, cmake, a C/C++ toolchain) |
 | `--llama-dir DIR`, `--llama-build-dir DIR` | checkout / build dir (default `~/llama.cpp`, `build-latest`) |
-| `--llama-backend auto\|cuda\|vulkan\|metal\|cpu` | GPU backend for that build (default: CUDA when `nvidia-smi` works, else CPU) |
+| `--llama-backend auto\|cuda\|vulkan\|metal\|cpu` | GPU backend for that build (default: CUDA when an NVIDIA GPU and the CUDA toolkit are available, else CPU) |
 | `--no-llamacpp` | never ask about llama.cpp; leave `serverBin` unset |
 | `--dry-run`, `-y` | preview / assume yes (also skips the llama.cpp prompt) |
 | `--uninstall [--purge]` | remove the app (`--purge` also removes data + config) |
@@ -66,6 +66,14 @@ Command Line Tools + Homebrew `cmake`), then runs the same `cmake` configure/bui
 as `llamaDir` so the app's update button uses it. Non-interactive runs (CI, `-y`,
 `--dry-run`, no terminal) never prompt: they report the missing binary and leave `serverBin`
 unset; pass `--llama-server PATH` or `--install-llamacpp` to decide up front.
+
+With `--llama-backend auto` the build uses CUDA when an NVIDIA GPU is present **and a CUDA
+toolkit is usable**; a driver alone (`nvidia-smi`) is not enough. If `nvcc` is missing the
+installer adds NVIDIA's CUDA repository (Ubuntu/Debian/WSL with apt) and installs
+`cuda-toolkit`, falling back to the distro's `nvidia-cuda-toolkit`, `dnf`'s `cuda-toolkit`
+(needs the repo enabled), `pacman`'s `cuda` or zypper's `cuda-toolkit`. If that still fails it
+warns and builds CPU-only instead, so the install never dies on CUDA; `--llama-backend cuda`
+makes the toolkit mandatory, and `--no-deps` disables the automatic install.
 
 `install.ps1` switches: `-Mode wsl|native`, `-Distro`, `-FromRelease`, `-Tag`, `-Repo`,
 `-WithDeps`, `-NoShortcuts`, `-Uninstall`, `-Purge`. Windows setups are explained in
