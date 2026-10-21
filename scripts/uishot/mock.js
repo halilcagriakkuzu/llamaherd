@@ -6,6 +6,15 @@
   const params = new URLSearchParams(location.search);
   const status = params.get("status") || "running";
   if (params.get("theme")) { try { localStorage.setItem("theme", params.get("theme")); } catch (e) {} }
+  if (params.get("notifications") === "1") {
+    try {
+      sessionStorage.setItem("llamaherd.notifications", JSON.stringify([
+        { at: Date.now() - 60000, message: "server ready (127.0.0.1:8090)", kind: "ok" },
+        { at: Date.now() - 30000, message: "download finished: Qwen3.5-9B-Q8_0.gguf", kind: "ok" },
+        { at: Date.now(), message: "benchmark: Qwen3.8-27B-UD-IQ4_XS [default] 47.5 tok/s", kind: "" },
+      ]));
+    } catch (e) {}
+  }
   if (params.get("logs") === "open") { try { localStorage.setItem("logsCollapsed", "0"); } catch (e) {} }
   const models = [
     { id: "qwen3-8-27b-ud-iq4_xs", display: "Qwen3.8-27B-UD-IQ4_XS", path: "/m/Qwen3.8-27B-UD-IQ4_XS.gguf", alias: "qwen3-8-27b-ud-iq4_xs", category: ["Qwen", "3.8"], mmproj: "/m/mmproj-F16.gguf", mtp: true, favorite: true, lastUsed: 1760000000, arch: "qwen35", layers: 64, heads: 24, kvHeads: 4, fullAttnLayers: 32, trainedContext: 262144, fileSize: 15180453472, quant: "UD-IQ4_XS", source: "hf:unsloth/Qwen3.8-27B-GGUF/Qwen3.8-27B-UD-IQ4_XS.gguf", provenance: { repo: "unsloth/Qwen3.8-27B-GGUF", url: "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF", license: "apache-2.0" } },
@@ -128,6 +137,8 @@
     const click = (sel, text) => { const n = Array.from(document.querySelectorAll(sel)).find((x) => !text || x.textContent.trim().startsWith(text)); if (n) n.click(); return n; };
     if (params.get("view") === "all") click("#crumbs button", "All");
     const menu = params.get("menu");
+    if (menu === "more") document.getElementById("moreBtn").click();
+    if (params.get("notif") === "1") document.getElementById("notifBtn").click();
     if (menu === "model") document.querySelector("#modelList li:not(.folder)").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 150, clientY: 560 }));
     if (menu === "folder") document.querySelector("#modelList li.folder").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 150, clientY: 520 }));
     const dialog = params.get("dialog");
@@ -174,6 +185,16 @@
 
       ok("detect button", !!byId("frBinDetect") && !!byId("pathBinDetect"));
       ok("diagnostics button", !!byId("diagCopy"));
+
+      // Secondary actions live behind one "⋯" menu.
+      byId("moreBtn").click();
+      ok("more menu open", byId("moreMenu") && !byId("moreMenu").hidden);
+      ok("more menu items", !!byId("moreDiag") && !!byId("moreUpdate") && !!byId("morePaths") && !!byId("themeBtn"));
+      byId("moreBtn").click();
+      ok("more menu closes", byId("moreMenu").hidden);
+      ok("notification center button", !!byId("notifBtn"));
+      // Any toast also lands in the notification center.
+      byId("rescanBtn").click();
 
       // Download queue: two waiting jobs, pause/resume/retry controls.
       if (byId("dlOpen")) byId("dlOpen").click();
@@ -226,6 +247,10 @@
       ok("duplicate preview", document.querySelectorAll("#importList .import-duplicate").length === 1 &&
         document.querySelectorAll("#importList .import-new").length === 1);
       ok("allow-duplicate toggle", !byId("importAllowDupRow").hidden);
+      ok("notification center populated", document.querySelectorAll("#notifList .notif-item").length > 0);
+      ok("notification badge", byId("notifCount") && !byId("notifCount").hidden);
+      byId("notifBtn").click();
+      ok("notification panel opens", byId("notifPanel") && !byId("notifPanel").hidden);
       finish();
     }, 100);
   }, 700));

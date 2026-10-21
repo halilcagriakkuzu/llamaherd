@@ -29,6 +29,8 @@ shot download "status=stopped&modal=download"
 shot download-catalog "status=stopped&modal=catalog" 1240,900
 shot download-bg "status=running&dl=1"
 shot download-queue "status=running&dl=1&modal=download"
+shot more-menu "status=running&menu=more"
+shot notifications "status=running&notifications=1&notif=1"
 shot download-repo "status=stopped&modal=repo" 1240,980
 shot menu-model "status=running&menu=model"
 shot menu-folder "status=running&view=all&menu=folder"

@@ -964,6 +964,85 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
   max-width: min(440px, calc(100vw - 32px));
   pointer-events: none;
 }
+#moreWrap { position: relative; display: flex; align-items: center; }
+.more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 900;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.more-menu[hidden] { display: none; }
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.menu-item:hover, .menu-item:focus-visible { background: var(--surface-2); outline: none; }
+.notif-count {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 9.5px;
+  line-height: 15px;
+  text-align: center;
+  font-weight: 700;
+}
+#notifBtn { position: relative; }
+.notif-panel {
+  position: fixed;
+  top: 58px;
+  right: 16px;
+  z-index: 950;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(420px, calc(100vh - 90px));
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.notif-panel[hidden] { display: none; }
+.notif-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+#notifList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.notif-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.notif-item time { color: var(--muted); font-size: 10.5px; white-space: nowrap; }
+.notif-item.error { border-left: 3px solid var(--red); }
+.notif-item.ok { border-left: 3px solid var(--green); }
+.notif-item.warn { border-left: 3px solid var(--amber); }
 .toast {
   pointer-events: auto;
   padding: 10px 14px;

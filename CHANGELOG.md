@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `POST /download/pause`, `/download/resume`, `/download/retry`, `/download/queue`
   (`{id}` removes a waiting job); CLI: `download queue [rm <id>]`, `download pause|resume|retry`.
   `GET /download` and the snapshot now include `queue`, `paused` and `currentId`.
+- **Refreshed top bar and notification center**: server actions stay in the header, while
+  theme, diagnostics, llama.cpp update and paths moved into one **⋯** menu. Toasts (downloads,
+  crashes, benchmarks, imports, errors) also land in a bell **notification center** with
+  timestamps, persisted for the browser session; clearing the center does not remove the
+  toast and vice versa. The model actions now read Rescan / Folder / Import / Download.
 - **Multi-part GGUF downloads**: selecting a `-00001-of-000NN.gguf` shard set downloads
   every part into the same folder (per-shard sha256 verification and resume), skips shards
   that already completed, records one library entry/preset whose `--model` is the first

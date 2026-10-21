@@ -65,6 +65,17 @@
     logDownload: $("logDownload"),
     logClear: $("logClear"),
     toasts: $("toasts"),
+    moreBtn: $("moreBtn"),
+    moreMenu: $("moreMenu"),
+    moreDiag: $("moreDiag"),
+    moreUpdate: $("moreUpdate"),
+    morePaths: $("morePaths"),
+    notifBtn: $("notifBtn"),
+    notifPanel: $("notifPanel"),
+    notifList: $("notifList"),
+    notifCount: $("notifCount"),
+    notifEmpty: $("notifEmpty"),
+    notifClear: $("notifClear"),
     pathBin: $("pathBin"),
     pathModels: $("pathModels"),
     pathBinBrowse: $("pathBinBrowse"),
@@ -203,9 +214,97 @@
     return window.runtime || null;
   }
 
-  // ---- toasts ----
+  // ---- notifications: toasts also land in the session notification center ----
+
+  const NOTIF_MAX = 100;
+  let notifications = [];
+  try {
+    const raw = sessionStorage.getItem("llamaherd.notifications");
+    if (raw) notifications = JSON.parse(raw) || [];
+  } catch (e) { /* storage unavailable */ }
+
+  function saveNotifications() {
+    try { sessionStorage.setItem("llamaherd.notifications", JSON.stringify(notifications)); } catch (e) { /* storage unavailable */ }
+  }
+
+  function notify(message, kind) {
+    const text = String(message || "").trim();
+    if (!text) return;
+    notifications.push({ at: Date.now(), message: text, kind: kind || "" });
+    if (notifications.length > NOTIF_MAX) notifications = notifications.slice(-NOTIF_MAX);
+    saveNotifications();
+    renderNotifications();
+  }
+
+  function renderNotifications() {
+    if (!el.notifList) return;
+    el.notifList.innerHTML = "";
+    el.notifEmpty.hidden = notifications.length > 0;
+    el.notifCount.hidden = notifications.length === 0;
+    el.notifCount.textContent = notifications.length > 99 ? "99+" : String(notifications.length);
+    notifications.slice().reverse().forEach((n) => {
+      const li = document.createElement("li");
+      li.className = "notif-item" + (n.kind ? " " + n.kind : "");
+      const time = document.createElement("time");
+      time.dateTime = new Date(n.at).toISOString();
+      time.textContent = new Date(n.at).toLocaleTimeString();
+      const msg = document.createElement("span");
+      msg.textContent = n.message;
+      li.append(time, msg);
+      el.notifList.appendChild(li);
+    });
+  }
+
+  function toggleNotifications(open) {
+    const show = open === undefined ? el.notifPanel.hidden : open;
+    el.notifPanel.hidden = !show;
+    el.notifBtn.setAttribute("aria-expanded", String(!!show));
+    if (show) renderNotifications();
+  }
+
+  function initNotifications() {
+    renderNotifications();
+    el.notifBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleNotifications(); });
+    el.notifClear.addEventListener("click", () => { notifications = []; saveNotifications(); renderNotifications(); });
+    document.addEventListener("click", (e) => {
+      if (!el.notifPanel.hidden && !el.notifPanel.contains(e.target) && !el.notifBtn.contains(e.target)) toggleNotifications(false);
+      if (!el.moreMenu.hidden && !el.moreMenu.contains(e.target) && !el.moreBtn.contains(e.target)) toggleMore(false);
+    });
+  }
+
+  function toggleMore(open) {
+    const show = open === undefined ? el.moreMenu.hidden : open;
+    el.moreMenu.hidden = !show;
+    el.moreBtn.setAttribute("aria-expanded", String(!!show));
+    if (show) {
+      const first = el.moreMenu.querySelector("button");
+      if (first) first.focus();
+    }
+  }
+
+  function initMoreMenu() {
+    el.moreBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleMore(); });
+    el.moreMenu.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { toggleMore(false); el.moreBtn.focus(); }
+    });
+    el.moreDiag.addEventListener("click", () => { toggleMore(false); el.diagCopy.click(); });
+    el.moreUpdate.addEventListener("click", () => { toggleMore(false); el.llamaUpdate.click(); });
+    el.morePaths.addEventListener("click", () => {
+      toggleMore(false);
+      showTab("llama");
+      const paths = $("sectPaths");
+      if (paths) paths.scrollIntoView({ block: "nearest" });
+      el.pathBin.focus();
+    });
+    $("themeBtn").addEventListener("click", () => toggleMore(false));
+  }
+
+  function notifyStatus(status, message) {
+    if (status !== lastStatus && (status === "crashed" || status === "failed")) notify(message, "error");
+  }
 
   function toast(message, kind) {
+    notify(message, kind);
     if (!el.toasts) return;
     const t = document.createElement("div");
     t.className = "toast" + (kind ? " " + kind : "");
@@ -484,6 +583,11 @@
 
     if (status !== lastStatus && !logsPinned && (status === "starting" || status === "crashed" || status === "failed")) {
       setLogsCollapsed(false, false);
+    }
+    if (status !== lastStatus) {
+      notifyStatus(status, status === "crashed"
+        ? `server crashed (exit ${snap.crashExit})`
+        : "server is not responding");
     }
     lastStatus = status;
     renderProcBanner();
@@ -1091,6 +1195,8 @@
     const now = Date.now();
     if (badgeLastStatus !== d.status) {
       if (d.status === "done" || d.status === "error") badgeDoneUntil = now + 20000;
+      if (d.status === "done") notify(`download finished: ${(d.file || "").split("/").pop()}`, "ok");
+      if (d.status === "error") notify(`download failed: ${d.error || (d.file || "").split("/").pop()}`, "error");
       badgeLastStatus = d.status;
     }
     const b = el.dlBadge;
@@ -1983,7 +2089,9 @@
     const root = document.documentElement;
     if (t === "light" || t === "dark") root.dataset.theme = t;
     else delete root.dataset.theme;
-    $("themeBtn").title = "Theme: " + t + " (click to change)";
+    const b = $("themeBtn");
+    b.title = "Theme: " + t + " (click to change)";
+    b.textContent = "Theme: " + t;
     try { localStorage.setItem("theme", t); } catch (e) { /* storage unavailable */ }
   }
 
@@ -2230,6 +2338,8 @@
     wireShortcuts();
     initLogsCollapse();
     initTheme();
+    initNotifications();
+    initMoreMenu();
 
     el.modelSearch.addEventListener("input", () => { modelQuery = el.modelSearch.value; renderModels(); });
     el.modelFilter.addEventListener("change", () => { modelFilter = el.modelFilter.value; renderModels(); });
