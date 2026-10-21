@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Top-level views**: Config, Performance & benchmarks and llama.cpp are now separate
+  screens behind a top tab bar, so the performance charts and benchmark table no longer
+  squeeze the config form (and llama.cpp gets the full width). Logs stay collapsed by
+  default and only open when the user expands them.
 - **Benchmark export**: `GET /benchmarks/export?format=csv|json`, a GUI **Export** button
   next to Clear (CSV Blob download) and `llamaherd bench export [--format csv|json]
   [--out file]`. CSV is RFC 4180 with a stable header, human-readable `when` next to raw

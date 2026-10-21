@@ -23,6 +23,7 @@ shot() { # name query [WxH]
 shot main "status=running&tab=basic"
 shot advanced "status=running&tab=advanced&vision=1"
 shot llama "status=running&tab=llama"
+shot performance "status=running&screen=performance" 1240,900
 shot notif-settings "status=running&tab=llama" 1240,1100
 shot stopped "status=stopped&tab=basic&dirty=1&warn=1"
 shot validation "status=running&tab=basic&issues=1"

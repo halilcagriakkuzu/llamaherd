@@ -30,10 +30,18 @@ func checkAPIPort() Check {
 	return c
 }
 
-// ours probes the control API to tell "already running" from "taken".
+// ours probes the control API to tell "already running" from "taken". The
+// control API requires its bearer token by default, so the probe sends it too.
 func ours(addr string) bool {
+	req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/status", nil)
+	if err != nil {
+		return false
+	}
+	if tok := settings.APIToken(); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
 	cl := http.Client{Timeout: 2 * time.Second}
-	resp, err := cl.Get("http://" + addr + "/status")
+	resp, err := cl.Do(req)
 	if err != nil {
 		return false
 	}

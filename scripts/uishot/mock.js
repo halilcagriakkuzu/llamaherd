@@ -132,7 +132,9 @@
   const tab = params.get("tab");
   const modal = params.get("modal");
   window.addEventListener("load", () => setTimeout(() => {
-    if (tab) document.getElementById({ basic: "tabBtnBasic", advanced: "tabBtnAdvanced", llama: "tabBtnLlama" }[tab]).click();
+    if (tab) document.getElementById({ basic: "tabBtnBasic", advanced: "tabBtnAdvanced", llama: "viewLlamaBtn" }[tab]).click();
+    const screen = params.get("screen");
+    if (screen) document.getElementById({ config: "viewConfigBtn", performance: "viewPerfBtn", llama: "viewLlamaBtn" }[screen]).click();
     if (modal === "download") document.getElementById("dlOpen").click();
     if (modal === "import") document.getElementById("importOpen").click();
     if (modal === "catalog") { document.getElementById("dlOpen").click(); setTimeout(() => document.getElementById("dlBrowse").click(), 50); }
@@ -198,8 +200,14 @@
       byId("moreBtn").click();
       ok("more menu closes", byId("moreMenu").hidden);
       ok("notification center button", !!byId("notifBtn"));
-      byId("tabBtnLlama").click();
+      ok("top view tabs", !!byId("viewConfigBtn") && !!byId("viewPerfBtn") && !!byId("viewLlamaBtn"));
+      byId("viewPerfBtn").click();
+      ok("performance screen", byId("main").dataset.view === "performance");
+      byId("viewLlamaBtn").click();
+      ok("llama.cpp screen", byId("main").dataset.view === "llama" && byId("viewLlama").contains(byId("tabLlama")));
       ok("notification settings UI", !!byId("notifEnabled") && !!byId("notifSave"));
+      byId("viewConfigBtn").click();
+      ok("config screen", byId("main").dataset.view === "config");
       byId("tabBtnBasic").click();
       // Any toast also lands in the notification center.
       byId("rescanBtn").click();

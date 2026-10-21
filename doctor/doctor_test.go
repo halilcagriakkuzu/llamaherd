@@ -2,6 +2,8 @@ package doctor
 
 import (
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -71,5 +73,21 @@ func TestAPIPortBusy(t *testing.T) {
 	t.Setenv("LLAMAHERD_API_PORT", strconv.Itoa(ln.Addr().(*net.TCPAddr).Port))
 	if c := checkAPIPort(); c.Status != StatusFail {
 		t.Fatalf("expected FAIL on a busy port, got %s: %s", c.Status, c.Detail)
+	}
+}
+
+func TestAPIPortOursWithToken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer secret" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"running","presetNames":["default"]}`))
+	}))
+	defer srv.Close()
+	t.Setenv("LLAMAHERD_API_TOKEN", "secret")
+	addr := strings.TrimPrefix(srv.URL, "http://")
+	if !ours(addr) {
+		t.Fatal("our own authenticated control API must be recognised")
 	}
 }

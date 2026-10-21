@@ -195,6 +195,45 @@ input, select, button { font: inherit; color: inherit; }
   padding-right: 2px;
 }
 
+/* Top-level views: Config keeps the model/config layout, while Performance and
+   llama.cpp get the full width. */
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 5px 18px 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.view-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px 8px;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+}
+.view-tab:hover { color: var(--text); background: var(--surface-2); }
+.view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.view-tab:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: -2px; }
+#viewLlama { display: none; }
+main[data-view="config"] #metricsGroup,
+main[data-view="config"] #benchGroup { display: none; }
+main[data-view="performance"] #left,
+main[data-view="performance"] #configGroup { display: none; }
+main[data-view="performance"] #metricsGroup,
+main[data-view="performance"] #benchGroup { display: block; }
+main[data-view="llama"] #left,
+main[data-view="llama"] #configGroup,
+main[data-view="llama"] #metricsGroup,
+main[data-view="llama"] #benchGroup { display: none; }
+main[data-view="llama"] #viewLlama { display: block; }
+
+
 .stretch { flex: 1; min-height: 0; }
 
 /* ---- cards ---- */

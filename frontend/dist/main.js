@@ -98,8 +98,11 @@
     configPath: $("configPath"),
     tabBtnBasic: $("tabBtnBasic"),
     tabBtnAdvanced: $("tabBtnAdvanced"),
-    tabBtnLlama: $("tabBtnLlama"),
     tabLlama: $("tabLlama"),
+    viewLlama: $("viewLlama"),
+    viewConfigBtn: $("viewConfigBtn"),
+    viewPerfBtn: $("viewPerfBtn"),
+    viewLlamaBtn: $("viewLlamaBtn"),
     llamaInfo: $("llamaInfo"),
     llamaProcs: $("llamaProcs"),
     llamaLast: $("llamaLast"),
@@ -299,7 +302,7 @@
     el.moreUpdate.addEventListener("click", () => { toggleMore(false); el.llamaUpdate.click(); });
     el.morePaths.addEventListener("click", () => {
       toggleMore(false);
-      showTab("llama");
+      showView("llama");
       const paths = $("sectPaths");
       if (paths) paths.scrollIntoView({ block: "nearest" });
       el.pathBin.focus();
@@ -618,9 +621,6 @@
     el.statusWord.textContent =
       status === "crashed" ? `CRASHED exit ${snap.crashExit}` : ST_WORD[status] || status.toUpperCase();
 
-    if (status !== lastStatus && !logsPinned && (status === "starting" || status === "crashed" || status === "failed")) {
-      setLogsCollapsed(false, false);
-    }
     if (status !== lastStatus) {
       notifyStatus(status, status === "crashed"
         ? `server crashed (exit ${snap.crashExit})`
@@ -894,7 +894,7 @@
       });
       const hint = document.createElement("div");
       hint.className = "doc-banner-hint";
-      hint.textContent = "Open the llama.cpp tab for fixes, then Re-check environment.";
+      hint.textContent = "Open the llama.cpp view for fixes, then Re-check environment.";
       el.doctorBanner.appendChild(hint);
       el.doctorBanner.classList.remove("hidden");
     } else {
@@ -1470,12 +1470,29 @@
     const tabs = {
       basic: [el.tabBtnBasic, el.tabBasic],
       advanced: [el.tabBtnAdvanced, el.tabAdvanced],
-      llama: [el.tabBtnLlama, el.tabLlama],
     };
     Object.entries(tabs).forEach(([name, [btn, panel]]) => {
       btn.classList.toggle("active", name === which);
       panel.classList.toggle("active", name === which);
     });
+  }
+
+  let currentView = "config";
+
+  function showView(which) {
+    if (!["config", "performance", "llama"].includes(which)) which = "config";
+    currentView = which;
+    document.getElementById("main").dataset.view = which;
+    const btns = { config: el.viewConfigBtn, performance: el.viewPerfBtn, llama: el.viewLlamaBtn };
+    Object.entries(btns).forEach(([name, btn]) => {
+      btn.classList.toggle("active", name === which);
+      if (name === which) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
+    });
+    if (which === "performance") {
+      requestAnimationFrame(() => { if (snap) renderCharts(); });
+      if (snap) renderBenchmarks();
+    }
     if (which === "llama") { refreshLlama(); loadNotificationSettings(); }
   }
 
@@ -2217,7 +2234,7 @@
   let llamaWasUpdating = false;
 
   function llamaActive() {
-    return el.tabLlama.classList.contains("active");
+    return currentView === "llama";
   }
 
   function refreshLlama(method) {
@@ -2399,6 +2416,14 @@
     initTheme();
     initNotifications();
     initMoreMenu();
+    if (el.tabLlama && el.viewLlama) {
+      el.tabLlama.classList.add("active");
+      el.viewLlama.appendChild(el.tabLlama);
+    }
+    el.viewConfigBtn.addEventListener("click", () => showView("config"));
+    el.viewPerfBtn.addEventListener("click", () => showView("performance"));
+    el.viewLlamaBtn.addEventListener("click", () => showView("llama"));
+    showView("config");
 
     el.modelSearch.addEventListener("input", () => { modelQuery = el.modelSearch.value; renderModels(); });
     el.modelFilter.addEventListener("change", () => { modelFilter = el.modelFilter.value; renderModels(); });
@@ -2467,7 +2492,6 @@
 
     el.tabBtnBasic.addEventListener("click", () => showTab("basic"));
     el.tabBtnAdvanced.addEventListener("click", () => showTab("advanced"));
-    el.tabBtnLlama.addEventListener("click", () => showTab("llama"));
     el.llamaRefresh.addEventListener("click", () => refreshLlama());
     el.doctorRefresh.addEventListener("click", () => call("RunDoctor"));
     el.dlOpen.addEventListener("click", openDownload);

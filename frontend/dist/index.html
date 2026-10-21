@@ -46,6 +46,11 @@
     </div>
   </div>
 </header>
+<nav id="viewTabs" class="view-tabs" aria-label="Main views">
+  <button id="viewConfigBtn" class="view-tab active" aria-current="page">Config</button>
+  <button id="viewPerfBtn" class="view-tab">Performance &amp; benchmarks</button>
+  <button id="viewLlamaBtn" class="view-tab">llama.cpp</button>
+</nav>
 <div id="notifPanel" class="notif-panel" role="log" aria-live="polite" aria-label="Notifications" hidden>
   <div class="notif-head">
     <b>Notifications</b>
@@ -55,7 +60,7 @@
   <ul id="notifList"></ul>
   <div id="notifEmpty" class="llama-hint">No notifications yet.</div>
 </div>
-<main id="main">
+<main id="main" data-view="config">
   <aside id="left">
     <section class="group" id="statusGroup">
       <h2 class="group-title">Server</h2>
@@ -121,7 +126,6 @@
       <div id="tabs">
         <button id="tabBtnBasic" class="tab active">Basic</button>
         <button id="tabBtnAdvanced" class="tab">Advanced</button>
-        <button id="tabBtnLlama" class="tab">llama.cpp</button>
       </div>
 
       <div id="tabPanels" class="stretch">
@@ -457,6 +461,8 @@
         </div>
       </div>
     </section>
+
+    <section class="group stretch view-llama" id="viewLlama"></section>
 
     <section class="group" id="metricsGroup">
       <div class="group-head">
