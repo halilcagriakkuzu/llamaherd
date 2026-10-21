@@ -5,6 +5,17 @@ All notable changes to LlamaHerd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-10-21
+
+### Added
+
+- **Windows shortcut for WSL installs**: `install.sh` running inside WSL now creates
+  `LlamaHerd.lnk` on the Windows Desktop and in the Start menu (via `powershell.exe` +
+  `wslg.exe -d <distro> -- ~/.local/bin/llamaherd-gui`), with the installed PNG converted to
+  an `.ico`. The Linux `.desktop` entry alone is invisible to Windows. `--no-desktop` skips
+  it, `--uninstall` removes it, and the summary prints the `llamaherd-gui` launch hint plus a
+  warning when the GTK/WebKit libraries are missing.
+
 ## [0.4.2] - 2026-10-21
 
 ### Fixed

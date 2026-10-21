@@ -25,6 +25,33 @@
   `\\wsl.localhost\Ubuntu\home\me\models`. `llamaherd doctor` warns about the slow case.
 - `llama-server` must listen on `127.0.0.1`; WSL2 localhost forwarding exposes it to Windows.
 
+### Launching the GUI (scenario B)
+
+The installer writes a Linux `.desktop` entry, which only appears in a Linux desktop menu —
+WSL has none, so nothing shows up on the Windows desktop by itself. On Windows 11 the
+installer also creates **LlamaHerd** shortcuts on the Windows Desktop and in the Start menu
+(they run `wslg.exe -d <distro> -- ~/.local/bin/llamaherd-gui`). Skip them with `--no-desktop`.
+
+Ways to start it:
+
+```bash
+llamaherd-gui        # installed launcher: sets DISPLAY/GSK_RENDERER, opens the window
+llamaherd            # same binary with no arguments; CLI subcommands still work
+```
+
+- Requires **WSLg** (Windows 11, or Windows 10 with the Microsoft Store WSL). Check with
+  `ls /mnt/wslg` and `echo $DISPLAY` (usually `:0`); if `/mnt/wslg` is missing you need a
+  Windows X server and `export DISPLAY=<host>:0`.
+- No shortcut appeared? Run the installer again without `--no-desktop`, make sure
+  `powershell.exe` is reachable from WSL (`powershell.exe -Command echo ok`), or create the
+  shortcut manually: target `C:\Program Files\WSL\wslg.exe`, arguments
+  `-d <distro> -- /home/<user>/.local/bin/llamaherd-gui`.
+- Window does not open at all? Run `llamaherd-gui` in the terminal to see the error and
+  `llamaherd doctor`. The usual cause is the GTK/WebKit libraries being skipped by the
+  piped installer: `sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0` (or re-run
+  `install.sh --with-deps`).
+- Uninstalling removes the Windows shortcuts again.
+
 ### Window frame (WSLg)
 
 In WSL the window frame is drawn by WSLg's Windows-side compositor, not by the app. Since

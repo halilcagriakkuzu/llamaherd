@@ -62,6 +62,7 @@ CUDA_NVCC=""                    # nvcc chosen for the CUDA backend (set at build
 CUDA_BIN_DIR=""
 CUDA_ROOT=""
 BACKEND=""                      # resolved backend (auto -> cuda|cpu)
+WIN_SHORTCUT=0                  # Windows Desktop/Start shortcut created (WSL)
 
 # Set this to your "OWNER/REPO" so the piped one-liner needs no --repo flag:
 #   curl -fsSL .../install.sh | bash -s -- --from-release
@@ -157,7 +158,7 @@ Install layout:
 Behavior:
   --with-deps            install system dependencies without asking
   --no-deps              never touch system packages
-  --no-desktop           skip the .desktop entry / .app bundle + launcher
+  --no-desktop           skip the .desktop entry / .app bundle / Windows shortcut
   --no-config            do not write the user config file
   --icon FILE            PNG icon to install (default: bundled assets/)
   -y, --yes              assume yes (non-interactive)
@@ -317,6 +318,8 @@ do_uninstall() {
   if [ "$OS" = "darwin" ]; then
     run rm -rf "$HOME/Applications/LlamaHerd.app"
   fi
+  # Windows shortcuts created by a WSL install
+  remove_windows_shortcut
 
   run rm -f "$MANIFEST"
   # Tidy now-empty manifest dir.
@@ -1046,6 +1049,93 @@ EOF
   manifest_add "$bundle/Contents/Info.plist"
 }
 
+# powershell_exe prints the Windows PowerShell path usable from WSL.
+powershell_exe() {
+  if have powershell.exe; then command -v powershell.exe; return 0; fi
+  local c
+  for c in \
+    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" \
+    "/mnt/c/Program Files/PowerShell/7/pwsh.exe"; do
+    [ -x "$c" ] && { printf '%s' "$c"; return 0; }
+  done
+  return 0
+}
+
+# install_windows_shortcut puts LlamaHerd on the Windows desktop and Start menu
+# when installing inside WSL: the Linux .desktop file is invisible to Windows.
+install_windows_shortcut() {
+  [ "$IS_WSL" = 1 ] || return 0
+  [ "$WITH_DESKTOP" = 1 ] || return 0
+  local ps
+  ps="$(powershell_exe)"
+  if [ -z "$ps" ] || ! have wslpath; then
+    info "no Windows shortcut created; launch the GUI from this terminal with: $APP-gui"
+    return 0
+  fi
+  if [ -z "${WSL_DISTRO_NAME:-}" ]; then
+    info "WSL_DISTRO_NAME is unset; skipping the Windows shortcut"
+    return 0
+  fi
+
+  log "Creating Windows Desktop / Start menu shortcuts (LlamaHerd.lnk)"
+  local tmp icon
+  tmp="$(mktemp -d)"
+  icon="$PREFIX/share/icons/hicolor/256x256/apps/$APP.png"
+  [ -f "$icon" ] || icon="$(resolve_icon)"
+  cat >"$tmp/shortcut.ps1" <<'PS'
+param([string]$Distro, [string]$Target, [string]$IconPng)
+$ErrorActionPreference = 'Stop'
+$wslg = 'C:\Program Files\WSL\wslg.exe'
+if (-not (Test-Path $wslg)) { $wslg = Join-Path $env:SystemRoot 'System32\wsl.exe' }
+$icon = Join-Path $env:USERPROFILE 'LlamaHerd\icon.ico'
+if ($IconPng -and (Test-Path $IconPng)) {
+  New-Item -ItemType Directory -Force -Path (Split-Path $icon) | Out-Null
+  try {
+    Add-Type -AssemblyName System.Drawing
+    $bmp = [System.Drawing.Bitmap]::FromFile($IconPng)
+    $ico = [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
+    $fs = [System.IO.File]::Create($icon)
+    $ico.Save($fs)
+    $fs.Close()
+  } catch { $icon = $null }
+} else { $icon = $null }
+$shell = New-Object -ComObject WScript.Shell
+foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
+  $lnk = $shell.CreateShortcut((Join-Path $dir 'LlamaHerd.lnk'))
+  $lnk.TargetPath = $wslg
+  $lnk.Arguments = "-d $Distro -- $Target"
+  $lnk.WorkingDirectory = 'C:\'
+  $lnk.Description = 'LlamaHerd - llama.cpp control panel (WSL)'
+  if ($icon) { $lnk.IconLocation = "$icon,0" }
+  $lnk.Save()
+}
+PS
+  run "$ps" -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+    -File "$(wslpath -w "$tmp/shortcut.ps1")" \
+    -Distro "$WSL_DISTRO_NAME" -Target "$BIN_DIR/$APP-gui" \
+    -IconPng "$(wslpath -w "$icon" 2>/dev/null || true)" && WIN_SHORTCUT=1
+}
+
+# remove_windows_shortcut deletes the shortcuts install_windows_shortcut made.
+remove_windows_shortcut() {
+  [ "$IS_WSL" = 1 ] || return 0
+  local ps
+  ps="$(powershell_exe)"
+  [ -n "$ps" ] && have wslpath || return 0
+  local tmp
+  tmp="$(mktemp -d)"
+  cat >"$tmp/remove.ps1" <<'PS'
+$ErrorActionPreference = 'SilentlyContinue'
+$shell = New-Object -ComObject WScript.Shell
+foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
+  $p = Join-Path $dir 'LlamaHerd.lnk'
+  if (Test-Path $p) { Remove-Item -Force $p }
+}
+PS
+  run "$ps" -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+    -File "$(wslpath -w "$tmp/remove.ps1")"
+}
+
 write_manifest() {
   [ "$DRY_RUN" = 1 ] && return 0
   mkdir -p "$(dirname "$MANIFEST")" 2>/dev/null || true
@@ -1093,6 +1183,7 @@ main() {
   write_config
   install_desktop_linux
   install_app_bundle_macos
+  install_windows_shortcut
   write_manifest
 
   log "Done."
@@ -1102,6 +1193,22 @@ main() {
   info "Config:   $CONFIG_DIR/config.json"
   info "Data:     $DATA_DIR  (configs/, library/)"
   [ -n "$LLAMA_SERVER" ] && info "Server:   $LLAMA_SERVER"
+  if [ "$IS_WSL" = 1 ]; then
+    echo
+    if [ "$WITH_DESKTOP" = 1 ]; then
+      info "WSL: run '$APP-gui' (or '$APP') in this terminal to open the window."
+    else
+      info "WSL: run '$APP' in this terminal to open the window."
+    fi
+    [ "${WIN_SHORTCUT:-0}" = 1 ] &&
+      info "     A 'LlamaHerd' shortcut is also on the Windows desktop / Start menu."
+    if [ "$OS" = "linux" ] && have ldconfig &&
+      ! ldconfig -p 2>/dev/null | grep -q 'libwebkit2gtk-4'; then
+      warn "the GTK/WebKit GUI libraries look missing; install them with:"
+      info "  sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0"
+      info "  (or re-run this installer with --with-deps)"
+    fi
+  fi
   echo
   info "Uninstall any time with: $PROG --uninstall"
 }

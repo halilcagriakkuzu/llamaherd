@@ -33,7 +33,7 @@ Use `bash`, not `sh` (the installer uses bash features).
 | `--release-tag TAG`, `--repo OWNER/REPO` | which release / repository to use |
 | `--prefix DIR`, `--bin-dir DIR`, `--data-dir DIR` | install locations (default prefix `~/.local`) |
 | `--with-deps` / `--no-deps` | install (or never touch) system packages |
-| `--no-desktop` / `--no-config` | skip the desktop entry / user config |
+| `--no-desktop` / `--no-config` | skip the desktop entry / user config (on WSL also the Windows shortcuts) |
 | `--llama-server PATH` | use that `llama-server` build (no detection, no prompt) |
 | `--install-llamacpp` | clone llama.cpp and build it (installs git, cmake, a C/C++ toolchain) |
 | `--llama-dir DIR`, `--llama-build-dir DIR` | checkout / build dir (default `~/llama.cpp`, `build-latest`) |

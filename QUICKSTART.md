@@ -42,6 +42,10 @@ llamaherd download Qwen/Qwen2.5-1.5B-Instruct-GGUF
 llamaherd                       # GUI  (WSLg: DISPLAY=:0 GSK_RENDERER=cairo llamaherd)
 ```
 
+In WSL, `llamaherd-gui` does that for you, and installs from 0.4.2 on also put a
+**LlamaHerd** shortcut on the Windows desktop / Start menu (see
+[Windows and WSL](docs/windows-and-wsl.md)).
+
 Pick a model, press **Start**, watch the status box. Headless:
 
 ```bash
