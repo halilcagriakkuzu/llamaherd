@@ -56,6 +56,7 @@ type Control interface {
 	CheckImport(paths []string) []schema.ImportCheck
 	RunBenchmark() (schema.Benchmark, error)
 	Benchmarks() []schema.Benchmark
+	ExportBenchmarks(format string) ([]byte, error)
 	ClearBenchmarks() error
 	DeleteModel(ref string) error
 	SetModelFavorite(ref string, favorite bool) error
@@ -359,6 +360,26 @@ func Handler(c Control) http.Handler {
 	})
 	mux.HandleFunc("GET /benchmarks", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"benchmarks": c.Benchmarks()})
+	})
+	mux.HandleFunc("GET /benchmarks/export", func(w http.ResponseWriter, r *http.Request) {
+		format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+		if format == "" {
+			format = "csv"
+		}
+		data, err := c.ExportBenchmarks(format)
+		if err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		switch format {
+		case "json":
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Disposition", `attachment; filename="llamaherd-benchmarks.json"`)
+		case "csv":
+			w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+			w.Header().Set("Content-Disposition", `attachment; filename="llamaherd-benchmarks.csv"`)
+		}
+		_, _ = w.Write(data)
 	})
 	mux.HandleFunc("POST /benchmarks/clear", func(w http.ResponseWriter, r *http.Request) {
 		if err := c.ClearBenchmarks(); err != nil {

@@ -115,7 +115,7 @@ func helpLines() []string {
 		"  logs [-f] [--tail n] show the app/server log (follow with -f)",
 		"  notifications [status|on|off|ready|crash|download|benchmark on|off]",
 		"                       host OS notifications (ready/crash/download/benchmark)",
-		"  bench [list|clear]   benchmark the running model/config (or list stored results)",
+		"  bench [list|clear|export]   benchmark the running model/config, list/clear/export results",
 		"  save | load          save/load the current selection's configs/<alias>.json",
 		"  config add <alias> <name> [--set basic.port=8090 --set advanced.fit=on ...]",
 		"	 add a NEW named preset (seeded from the alias's first preset,",
@@ -166,7 +166,7 @@ func subcommandUsage(sub string) string {
 		"stop":          "usage: llamaherd stop",
 		"restart":       "usage: llamaherd restart",
 		"rescan":        "usage: llamaherd rescan",
-		"bench":         "usage: llamaherd bench [list|clear]   # requires a running server",
+		"bench":         "usage: llamaherd bench [list|clear|export [--format csv|json] [--out file]]   # requires a running server",
 		"logs":          "usage: llamaherd logs [-f] [--tail n]",
 		"notifications": "usage: llamaherd notifications [status|on|off|ready|crash|download|benchmark on|off]",
 		"completion":    "usage: llamaherd completion bash|zsh|fish",
@@ -298,6 +298,33 @@ func ctlRequest(args []string) ([]byte, int, error) {
 	case "bench":
 		if len(args) > 1 {
 			switch args[1] {
+			case "export":
+				format, out := "csv", ""
+				for i := 2; i < len(args); i++ {
+					switch args[i] {
+					case "--format", "-f":
+						if i+1 < len(args) {
+							format = args[i+1]
+							i++
+						}
+					case "--out", "-o":
+						if i+1 < len(args) {
+							out = args[i+1]
+							i++
+						}
+					}
+				}
+				data, status, err := get("/benchmarks/export?format=" + format)
+				if err != nil || status >= 400 {
+					return data, status, err
+				}
+				if out == "" {
+					return data, status, nil
+				}
+				if err := os.WriteFile(out, data, 0o644); err != nil {
+					return []byte(err.Error()), 1, nil
+				}
+				return []byte("wrote " + out), 0, nil
 			case "list":
 				return get("/benchmarks")
 			case "clear":

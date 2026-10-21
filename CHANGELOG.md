@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Benchmark export**: `GET /benchmarks/export?format=csv|json`, a GUI **Export** button
+  next to Clear (CSV Blob download) and `llamaherd bench export [--format csv|json]
+  [--out file]`. CSV is RFC 4180 with a stable header, human-readable `when` next to raw
+  `at`; JSON round-trips through the benchmark store.
 - **Benchmark `/metrics` counters**: new Advanced → Runtime **Metrics** toggle adds
   `--metrics`. Benchmark runs scrape `/metrics` before/after and store prompt-eval time,
   busy/active slots, queue depth and context/KV usage in `schema.Benchmark`; the table shows

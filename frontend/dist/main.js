@@ -123,6 +123,7 @@
     procStop: $("procStop"),
     benchRun: $("benchRun"),
     benchClear: $("benchClear"),
+    benchExport: $("benchExport"),
     benchHint: $("benchHint"),
     benchTable: $("benchTable"),
     benchBody: $("benchBody"),
@@ -2059,6 +2060,23 @@
     libCall("ClearBenchmarks").then(() => { renderBenchmarks(); toast("benchmarks cleared", "ok"); }).catch(() => {});
   }
 
+  function exportBenchmarks() {
+    const a = app();
+    if (!a) return;
+    Promise.resolve(a.BenchmarkExportText("csv")).then((text) => {
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "llamaherd-benchmarks-" + new Date().toISOString().slice(0, 10) + ".csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast("benchmarks exported", "ok");
+    }).catch((err) => toast(err && err.message ? err.message : String(err), "error"));
+  }
+
   // ---- model details ----
 
   let detailsModel = null;
@@ -2463,6 +2481,7 @@
     el.importModal.addEventListener("mousedown", (e) => { if (e.target === el.importModal) closeImport(); });
     el.benchRun.addEventListener("click", runBenchmark);
     el.benchClear.addEventListener("click", clearBenchmarks);
+    el.benchExport.addEventListener("click", exportBenchmarks);
     el.procRetry.addEventListener("click", () => call("RestartServer"));
     el.procStop.addEventListener("click", () => call("StopServer"));
     el.dlClose.addEventListener("click", () => { el.dlModal.hidden = true; });

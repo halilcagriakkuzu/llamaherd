@@ -88,7 +88,11 @@ func (f *fake) RunBenchmark() (schema.Benchmark, error) {
 	return schema.Benchmark{Preset: "default", GenTokS: 42.5}, nil
 }
 func (f *fake) Benchmarks() []schema.Benchmark { return []schema.Benchmark{{Preset: "default"}} }
-func (f *fake) ClearBenchmarks() error         { f.rec("benchclear"); return nil }
+func (f *fake) ExportBenchmarks(format string) ([]byte, error) {
+	f.rec("export:" + format)
+	return []byte("model,preset\r\nm,default\r\n"), nil
+}
+func (f *fake) ClearBenchmarks() error { f.rec("benchclear"); return nil }
 func (f *fake) SetModelFavorite(ref string, fav bool) error {
 	f.rec("favorite:" + ref)
 	return nil
@@ -371,6 +375,21 @@ func TestNotificationEndpoints(t *testing.T) {
 		t.Errorf("POST /notifications = %d %s", code, body)
 	}
 	if got := strings.Join(f.calls, ","); !strings.Contains(got, "notifications:true:false") {
+		t.Errorf("calls = %s", got)
+	}
+}
+
+func TestBenchmarkExportEndpoint(t *testing.T) {
+	isolate(t)
+	f := &fake{}
+	h := Handler(f)
+	if code, body := do(t, h, "GET", "/benchmarks/export?format=csv", "", nil); code != 200 || !strings.Contains(body, "model,preset") {
+		t.Errorf("CSV export = %d %s", code, body)
+	}
+	if code, _ := do(t, h, "GET", "/benchmarks/export?format=json", "", nil); code != 200 {
+		t.Errorf("JSON export = %d", code)
+	}
+	if got := strings.Join(f.calls, ","); got != "export:csv,export:json" {
 		t.Errorf("calls = %s", got)
 	}
 }

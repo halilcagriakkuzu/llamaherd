@@ -115,6 +115,7 @@
     GetCatalog: () => Promise.resolve(catalog), RefreshCatalog: () => Promise.resolve(catalog), GetFullCatalog: () => Promise.resolve(full), ListRepoFiles: () => Promise.resolve(repoFiles), GetHFTokenStatus: () => Promise.resolve({ configured: false }),
     NotificationSettings: () => Promise.resolve({ enabled: true, serverReady: true, serverCrash: true, download: true, benchmark: true }),
     SetNotificationSettings: () => Promise.resolve(),
+    BenchmarkExportText: () => Promise.resolve("modelId,model,preset\r\nm,Model,default\r\n"),
     DetectServerBin: () => Promise.resolve({ path: "/home/me/llama.cpp/build/bin/llama-server", version: "0.7.0-dev (b11708)" }),
     DiagnosticsText: () => Promise.resolve("LlamaHerd mock diagnostics\nstatus: running"),
     CheckImport: (paths) => Promise.resolve(paths.map((p, i) => i === 0
@@ -178,6 +179,8 @@
       ok("running status", text("statusWord").includes("RUNNING"));
       ok("model rows", document.querySelectorAll("#modelList li:not(.folder)").length > 0);
       ok("benchmark rows", document.querySelectorAll("#benchBody tr").length === 3);
+      ok("benchmark export button", !!byId("benchExport"));
+      ok("benchmark metric columns", document.querySelectorAll("#benchBody tr td:nth-child(7)").length === 3);
       ok("benchmark current row", !!document.querySelector("#benchBody tr.current"));
       ok("benchmark fastest first", (() => {
         const cells = Array.from(document.querySelectorAll("#benchBody tr td:nth-child(5)"));

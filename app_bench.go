@@ -6,9 +6,14 @@ package main
 // number masquerade as the current config's speed.
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"llamaherd/control"
@@ -154,6 +159,62 @@ func (a *App) ClearBenchmarks() error {
 	a.Log("bench: cleared stored results")
 	a.emitStateLocked()
 	return nil
+}
+
+// ExportBenchmarks returns the stored results as JSON (array, round-trips
+// through store.LoadBenchmarks) or RFC 4180 CSV with a stable header row.
+func (a *App) ExportBenchmarks(format string) ([]byte, error) {
+	rows := a.Benchmarks()
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "", "csv":
+		var buf bytes.Buffer
+		w := csv.NewWriter(&buf)
+		w.UseCRLF = true
+		header := []string{
+			"modelId", "model", "alias", "preset", "fingerprint", "at", "when",
+			"context", "gpuLayers", "promptN", "promptTokPerSec", "genN", "genTokPerSec",
+			"peakVramMB", "durationMs", "promptEvalMs", "slotsActive", "slotsBusy",
+			"queueDepth", "contextTokens", "kvCacheRatio",
+		}
+		if err := w.Write(header); err != nil {
+			return nil, err
+		}
+		f := func(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+		for _, b := range rows {
+			when := ""
+			if b.At > 0 {
+				when = time.Unix(b.At, 0).Format(time.RFC3339)
+			}
+			rec := []string{
+				b.ModelID, b.Model, b.Alias, b.Preset, b.Fingerprint,
+				strconv.FormatInt(b.At, 10), when,
+				strconv.Itoa(b.Context), b.GPULayers,
+				strconv.Itoa(b.PromptN), f(b.PromptTokS), strconv.Itoa(b.GenN), f(b.GenTokS),
+				strconv.Itoa(b.PeakVRAMMB), strconv.FormatInt(b.DurationMS, 10),
+				f(b.PromptEvalMS), strconv.Itoa(b.SlotsActive), strconv.Itoa(b.SlotsBusy),
+				strconv.Itoa(b.QueueDepth), strconv.Itoa(b.ContextTokens), f(b.KVCacheRatio),
+			}
+			if err := w.Write(rec); err != nil {
+				return nil, err
+			}
+		}
+		w.Flush()
+		if err := w.Error(); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case "json":
+		return json.MarshalIndent(rows, "", "  ")
+	default:
+		return nil, fmt.Errorf("unknown export format %q (use csv or json)", format)
+	}
+}
+
+// BenchmarkExportText is the Wails-friendly form of ExportBenchmarks (the UI
+// saves it through a Blob download).
+func (a *App) BenchmarkExportText(format string) (string, error) {
+	b, err := a.ExportBenchmarks(format)
+	return string(b), err
 }
 
 // reloadBenchmarksLocked refreshes the in-memory table from disk (caller holds

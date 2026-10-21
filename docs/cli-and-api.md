@@ -24,7 +24,7 @@ llamaherd logs [-f] [--tail n]             # app/server log (follow with -f)
 llamaherd list --json                      # machine-readable models + presets
 llamaherd status --summary                 # one-screen human summary
 llamaherd completion bash|zsh|fish         # shell completion
-llamaherd bench [list|clear]               # benchmark the running model/config, or list results
+llamaherd bench [list|clear|export [--format csv|json] [--out file]]   # benchmark, list, clear or export results
 llamaherd save | load                      # persist / restore the current preset
 
 llamaherd config add|update <alias> <name> [--set basic.port=8090 --set advanced.fit=on]
@@ -78,6 +78,7 @@ llamaherd version
 | `POST /model/import/check` | `{paths: [..]}` | duplicate preview: `checks[]` with `duplicate`, `existingAlias`, `existingPath`, `error` |
 | `POST /benchmark` | — | measure the running model/config; returns and stores the result |
 | `GET /benchmarks`, `POST /benchmarks/clear` | — | stored results (fastest first) / delete them |
+| `GET /benchmarks/export?format=csv\|json` | — | stable CSV columns or a JSON array that round-trips through the store |
 | `POST /model/favorite` | `{model, favorite}` | pin / unpin a model |
 | `POST /model/category` | `{model, category: [..]}` | place a model; `[]` = Uncategorized |
 | `POST /category/create`, `/rename`, `/delete` | `{path: [..], name?}` | category folders (delete keeps models) |
