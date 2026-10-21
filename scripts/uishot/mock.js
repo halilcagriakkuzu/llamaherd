@@ -26,6 +26,7 @@
   const running = status === "running";
   const snap = {
     status, crashExit: status === "crashed" ? 3 : 0,
+    ready: params.get("ready") !== "0",
     server: {
       status, pid: running ? "749941" : "—", binary: "/home/me/llama.cpp/build/bin/llama-server",
       listen: running ? "127.0.0.1:8090" : "", wslIp: "172.24.16.1",
@@ -177,6 +178,10 @@
       ok("recent log tail", text("procBannerLog").includes("failed to load model"));
       ok("retry button", !!byId("procRetry"));
       ok("stop button", !!byId("procStop"));
+    } else if (mode === "loading") {
+      ok("loading status bar", text("statusInfo").includes("loading"));
+      ok("validation hidden while loading", byId("validation").hidden);
+      ok("no model rows while loading", document.querySelectorAll("#modelList li:not(.folder)").length === 0);
     } else {
       ok("running status", text("statusWord").includes("RUNNING"));
       ok("model rows", document.querySelectorAll("#modelList li:not(.folder)").length > 0);
@@ -258,7 +263,7 @@
       : "SELFTEST PASS (" + checks.length + " checks)";
     document.body.appendChild(box);
     };
-    if (mode === "failed") { finish(); return; }
+    if (mode === "failed" || mode === "loading") { finish(); return; }
     setTimeout(() => {
       ok("duplicate preview", document.querySelectorAll("#importList .import-duplicate").length === 1 &&
         document.querySelectorAll("#importList .import-new").length === 1);

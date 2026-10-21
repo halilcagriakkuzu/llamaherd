@@ -60,6 +60,8 @@ run_case "running: models, benchmark table, import dialog, download queue" \
   "selftest=main&status=running&dl=1" "SELFTEST PASS" || fail=1
 run_case "failed: not-responding banner and actions" \
   "selftest=failed&status=failed" "SELFTEST PASS" || fail=1
+run_case "loading: no scary validation before startup finishes" \
+  "selftest=loading&status=stopped&ready=0" "SELFTEST PASS" || fail=1
 
 if [ "$fail" -ne 0 ]; then
   echo "UI smoke test failed" >&2

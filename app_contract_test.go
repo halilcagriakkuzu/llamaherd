@@ -20,7 +20,7 @@ func TestSnapshotContract(t *testing.T) {
 	}
 
 	required := []string{
-		"status", "crashExit", "server", "models", "categories", "selectedModel",
+		"status", "crashExit", "ready", "server", "models", "categories", "selectedModel",
 		"alias", "presetNames", "selectedPreset", "config", "configPath",
 		"dirty", "commandLine", "bootLines", "warning", "vramEstimate",
 		"vramPercent", "vramFits", "validation", "llamaUpdating", "firstRun",

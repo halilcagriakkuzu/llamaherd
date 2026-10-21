@@ -23,8 +23,11 @@ import (
 // Snapshot is the complete UI state. It is sent to the frontend on every
 // change (event "state") and on GetState().
 type Snapshot struct {
-	Status         string         `json:"status"` // starting | stopping | running | stopped | crashed
-	CrashExit      int            `json:"crashExit"`
+	Status    string `json:"status"` // starting | stopping | running | stopped | crashed
+	CrashExit int    `json:"crashExit"`
+	// Ready is false until startup finished scanning models and loading presets;
+	// the frontend shows a loading state instead of validating an empty config.
+	Ready          bool           `json:"ready"`
 	Server         schema.Server  `json:"server"`
 	Models         []schema.Model `json:"models"`
 	Categories     [][]string     `json:"categories"` // persisted category folders (may be empty)
@@ -96,6 +99,7 @@ type App struct {
 	bootLines []string
 	eventCh   chan eventMsg
 	warn      string // blocking pre-flight message (VRAM guard), "" = none
+	ready     bool   // startup finished (models + presets loaded)
 	llama     llamaUpdate
 	doctorMu  sync.Mutex
 	doctorRep doctor.Report
@@ -323,6 +327,9 @@ func (a *App) startup(ctx context.Context) {
 		a.emitState()
 	}()
 
+	a.stateMu.Lock()
+	a.ready = true
+	a.stateMu.Unlock()
 	a.emitState()
 }
 
@@ -812,6 +819,7 @@ func (a *App) snapshotLocked() Snapshot {
 	s := Snapshot{
 		Status:            string(info.Status),
 		CrashExit:         info.Exit,
+		Ready:             a.ready,
 		Server:            srv,
 		Models:            models,
 		Categories:        cats,
@@ -990,6 +998,9 @@ func (a *App) startupHeadless() {
 	}
 	a.refreshDoctor()
 	a.ensureAPIToken()
+	a.stateMu.Lock()
+	a.ready = true
+	a.stateMu.Unlock()
 	a.emitState()
 }
 

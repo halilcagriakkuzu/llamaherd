@@ -1420,6 +1420,10 @@
 
   function render() {
     if (!snap) return;
+    if (snap.ready === false) {
+      el.statusInfo.textContent = "loading — scanning models and presets…";
+      return;
+    }
     renderDownloadBadge();
     if (!bootPrinted) {
       bootPrinted = true;
@@ -1912,7 +1916,7 @@
   }
 
   function drawChart(canvas, values, color) {
-    if (!canvas) return;
+    if (!canvas || canvas.clientWidth === 0) return;
     const cssW = Math.max(80, canvas.clientWidth || 160);
     const cssH = 46;
     const dpr = window.devicePixelRatio || 1;
@@ -1952,6 +1956,7 @@
   }
 
   function renderCharts() {
+    if (currentView !== "performance") return; // hidden canvases have no layout
     const pts = (snap && snap.metrics) || [];
     const last = pts.length ? pts[pts.length - 1] : {};
     el.chartVramVal.textContent = fmtMB(last.vramMB);
@@ -2184,23 +2189,14 @@
 
   // ---- logs collapse ----
 
-  let logsPinned = false; // true once the user toggled logs themselves
-
-  function setLogsCollapsed(collapsed, persist) {
+  function setLogsCollapsed(collapsed) {
     el.logsGroup.classList.toggle("collapsed", collapsed);
     el.logsTitle.textContent = (collapsed ? "▸ " : "▾ ") + "Logs";
-    if (persist === false) return;
-    logsPinned = true;
-    try { localStorage.setItem("logsCollapsed", collapsed ? "1" : "0"); } catch (e) { /* storage unavailable */ }
   }
 
   function initLogsCollapse() {
-    // Collapsed by default to give the config form room; it opens by itself when
-    // a server starts or crashes (unless the user has chosen a state before).
-    let saved = null;
-    try { saved = localStorage.getItem("logsCollapsed"); } catch (e) { /* storage unavailable */ }
-    if (saved === null) setLogsCollapsed(true, false);
-    else { logsPinned = true; setLogsCollapsed(saved === "1", false); }
+    // Always start collapsed; the user opens the accordion when needed.
+    setLogsCollapsed(true);
     const toggle = () => setLogsCollapsed(!el.logsGroup.classList.contains("collapsed"));
     el.logsTitle.addEventListener("click", toggle);
     el.logsTitle.addEventListener("keydown", (e) => {
