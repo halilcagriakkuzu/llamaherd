@@ -30,6 +30,7 @@ type downloadHub struct {
 	ranges []string
 	files  map[string][]byte
 	block  map[string]chan struct{}
+	tamper map[string]bool
 }
 
 func (h *downloadHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -70,10 +71,15 @@ func (h *downloadHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.mu.Lock()
 		body, ok := h.files[key]
 		gate := h.block[key]
+		tamper := h.tamper[key]
 		h.mu.Unlock()
 		if !ok {
 			http.NotFound(w, r)
 			return
+		}
+		if tamper {
+			body = append([]byte(nil), body...)
+			body[0] ^= 0xff
 		}
 		if gate != nil && r.Header.Get("Range") == "" {
 			half := len(body) / 2
@@ -227,5 +233,79 @@ func TestDownloadQueueTwoJobsRunInOrder(t *testing.T) {
 	}
 	if len(got) != 2 || !strings.Contains(got[0], "/a/") || !strings.Contains(got[1], "/b/") {
 		t.Fatalf("download order = %v", got)
+	}
+}
+
+func TestMultiPartDownloadInstallsFirstShard(t *testing.T) {
+	hub := &downloadHub{files: map[string][]byte{
+		"o/set/Model-00001-of-00002.gguf": []byte(strings.Repeat("1", 100)),
+		"o/set/Model-00002-of-00002.gguf": []byte(strings.Repeat("2", 100)),
+	}}
+	a := newDownloadApp(t, hub)
+	if err := a.StartDownload("o/set", "Model-00001-of-00002.gguf", "none", "none"); err != nil {
+		t.Fatal(err)
+	}
+	st := waitDownload(t, a, func(s DownloadState) bool {
+		return !s.Active && s.Status == "done" && len(s.Queue) == 0
+	})
+	if len(st.Files) != 2 {
+		t.Fatalf("downloaded files = %v", st.Files)
+	}
+	for name := range hub.files {
+		dest := filepath.Join(a.modelsDir, "o/set", filepath.Base(name))
+		if _, err := os.Stat(dest); err != nil {
+			t.Fatalf("shard missing: %v", err)
+		}
+	}
+	first := filepath.Join(a.modelsDir, "o/set", "Model-00001-of-00002.gguf")
+	i := a.indexOfModelPath(first)
+	if i < 0 {
+		t.Fatalf("first shard not scanned as a model: %+v", a.models)
+	}
+	list := a.presets[a.models[i].Alias]
+	if len(list) == 0 || !strings.HasSuffix(list[0].Basic.Model, "Model-00001-of-00002.gguf") {
+		t.Fatalf("preset must load the first shard: %+v", list)
+	}
+}
+
+func TestMultiPartDownloadRejectsCorruptShard(t *testing.T) {
+	hub := &downloadHub{
+		files: map[string][]byte{
+			"o/bad/Model-00001-of-00002.gguf": []byte(strings.Repeat("1", 100)),
+			"o/bad/Model-00002-of-00002.gguf": []byte(strings.Repeat("2", 100)),
+		},
+		tamper: map[string]bool{"o/bad/Model-00002-of-00002.gguf": true},
+	}
+	a := newDownloadApp(t, hub)
+	if err := a.StartDownload("o/bad", "Model-00001-of-00002.gguf", "none", "none"); err != nil {
+		t.Fatal(err)
+	}
+	st := waitDownload(t, a, func(s DownloadState) bool {
+		return !s.Active && s.Status == "error"
+	})
+	if !strings.Contains(st.Error, "checksum mismatch") {
+		t.Fatalf("error = %q", st.Error)
+	}
+	if _, err := os.Stat(filepath.Join(a.modelsDir, "o/bad", "Model-00002-of-00002.gguf")); !os.IsNotExist(err) {
+		t.Fatal("corrupt shard must not be installed")
+	}
+	for _, m := range a.models {
+		if strings.Contains(m.Path, "o/bad") || strings.Contains(m.Path, "o"+string(filepath.Separator)+"bad") {
+			t.Fatalf("corrupt set must not create a model: %+v", m)
+		}
+	}
+}
+
+func TestMultiPartDownloadRejectsMissingShard(t *testing.T) {
+	hub := &downloadHub{files: map[string][]byte{
+		"o/gap/Model-00001-of-00002.gguf": []byte(strings.Repeat("1", 100)),
+	}}
+	a := newDownloadApp(t, hub)
+	if err := a.StartDownload("o/gap", "Model-00001-of-00002.gguf", "none", "none"); err != nil {
+		t.Fatal(err)
+	}
+	st := waitDownload(t, a, func(s DownloadState) bool { return !s.Active && s.Status == "error" })
+	if !strings.Contains(st.Error, "missing") {
+		t.Fatalf("error = %q", st.Error)
 	}
 }

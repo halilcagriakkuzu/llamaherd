@@ -34,19 +34,38 @@ func (a *App) doDownload(ctx context.Context, repo, file, visionFile, mtpFile st
 	if err != nil {
 		return downloadAccessError(err, info, token)
 	}
-	model, err := hf.ResolveFile(tree, file)
+	models, err := hf.ResolveModelSet(tree, file)
 	if err != nil {
 		return err
 	}
+	shardPaths := make([]string, len(models))
+	var setTotal int64
+	for i, m := range models {
+		shardPaths[i] = m.Path
+		setTotal += m.Size
+	}
+	multi := len(models) > 1
+	a.setDownload(func(d *DownloadState) {
+		if multi {
+			d.Shards = shardPaths
+			d.ShardCount = len(models)
+		}
+	})
 
 	lastEmit := time.Time{}
-	onProgress := func(name string) func(hf.Progress) {
+	completed := int64(0)
+	onProgress := func(name string, index int, done, total int64) func(hf.Progress) {
 		return func(p hf.Progress) {
 			a.setDownload(func(d *DownloadState) {
 				d.File = name
-				d.Received = p.Received
-				d.Total = p.Total
-				d.Percent = p.Percent
+				d.ShardIndex = index
+				d.Received = done + p.Received
+				d.Total = total
+				if total > 0 {
+					d.Percent = float64(d.Received) / float64(total) * 100
+				} else {
+					d.Percent = p.Percent
+				}
 				d.SpeedBps = p.SpeedBps
 				d.Status = p.Phase
 			})
@@ -57,22 +76,42 @@ func (a *App) doDownload(ctx context.Context, repo, file, visionFile, mtpFile st
 		}
 	}
 
-	modelPath, err := hf.Download(ctx, hf.Options{
-		Repo: repo, File: model.Path, DestDir: destDir, Token: token,
-		ExpectedSize: model.Size, ExpectedSHA256: model.OID,
-		OnProgress: onProgress(model.Path), Retries: 3,
-	})
-	if err != nil {
-		return downloadAccessError(err, info, token)
+	var modelPath string
+	for i, m := range models {
+		dest := filepath.Join(destDir, filepath.Base(m.Path))
+		if i > 0 && hf.FileMatches(dest, m.Size, m.OID) {
+			// A shard that finished before a retry is not fetched again.
+			completed += m.Size
+			a.setDownload(func(d *DownloadState) { d.Files = append(d.Files, dest) })
+			a.Log(fmt.Sprintf("hf: shard %d/%d already complete: %s", i+1, len(models), filepath.Base(m.Path)))
+			continue
+		}
+		p, err := hf.Download(ctx, hf.Options{
+			Repo: repo, File: m.Path, DestDir: destDir, Token: token,
+			ExpectedSize: m.Size, ExpectedSHA256: m.OID,
+			OnProgress: onProgress(m.Path, i+1, completed, setTotal), Retries: 3,
+		})
+		if err != nil {
+			return downloadAccessError(err, info, token)
+		}
+		modelPath = p
+		completed += m.Size
+		a.setDownload(func(d *DownloadState) { d.Files = append(d.Files, p) })
 	}
-	a.setDownload(func(d *DownloadState) { d.Files = append(d.Files, modelPath) })
+	if multi {
+		modelPath = filepath.Join(destDir, filepath.Base(models[0].Path))
+	}
+	if modelPath == "" && len(models) > 0 {
+		modelPath = filepath.Join(destDir, filepath.Base(models[0].Path))
+	}
+	firstPath := models[0].Path
 
 	var mmPath string
-	if mm, ok := hf.ResolveMMProj(tree, visionFile); ok && mm.Path != model.Path {
+	if mm, ok := hf.ResolveMMProj(tree, visionFile); ok && mm.Path != firstPath {
 		p, err := hf.Download(ctx, hf.Options{
 			Repo: repo, File: mm.Path, DestDir: destDir, Token: token,
 			ExpectedSize: mm.Size, ExpectedSHA256: mm.OID,
-			OnProgress: onProgress(mm.Path), Retries: 3,
+			OnProgress: onProgress(mm.Path, 0, 0, mm.Size), Retries: 3,
 		})
 		if err != nil {
 			return err
@@ -82,11 +121,11 @@ func (a *App) doDownload(ctx context.Context, repo, file, visionFile, mtpFile st
 	}
 
 	var draftPath string
-	if draft, ok := hf.ResolveMTPDraft(tree, mtpFile); ok && draft.Path != model.Path {
+	if draft, ok := hf.ResolveMTPDraft(tree, mtpFile); ok && draft.Path != firstPath {
 		p, err := hf.Download(ctx, hf.Options{
 			Repo: repo, File: draft.Path, DestDir: destDir, Token: token,
 			ExpectedSize: draft.Size, ExpectedSHA256: draft.OID,
-			OnProgress: onProgress(draft.Path), Retries: 3,
+			OnProgress: onProgress(draft.Path, 0, 0, draft.Size), Retries: 3,
 		})
 		if err != nil {
 			return err
@@ -95,7 +134,7 @@ func (a *App) doDownload(ctx context.Context, repo, file, visionFile, mtpFile st
 		a.setDownload(func(d *DownloadState) { d.Files = append(d.Files, draftPath) })
 	}
 
-	a.installDownloaded(repo, model.Path, modelPath, mmPath, draftPath, provenanceFrom(info))
+	a.installDownloaded(repo, firstPath, modelPath, mmPath, draftPath, provenanceFrom(info))
 	return nil
 }
 

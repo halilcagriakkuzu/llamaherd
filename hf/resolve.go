@@ -4,10 +4,117 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 var shardRe = regexp.MustCompile(`-\d{5}-of-\d{5}\.gguf$`)
+
+// ShardInfo describes one part of a multi-part GGUF set. Dir includes the
+// trailing slash; Base is the file prefix shared by every shard.
+type ShardInfo struct {
+	Dir   string
+	Base  string
+	Index int
+	Total int
+}
+
+// ParseShard splits a shard file name ("model-00001-of-00002.gguf").
+func ParseShard(p string) (ShardInfo, bool) {
+	b := base(p)
+	m := shardName.FindStringSubmatch(b)
+	if m == nil {
+		return ShardInfo{}, false
+	}
+	idx, err1 := strconv.Atoi(m[2])
+	total, err2 := strconv.Atoi(m[3])
+	if err1 != nil || err2 != nil || idx < 1 || total < 1 {
+		return ShardInfo{}, false
+	}
+	dir := ""
+	if i := strings.LastIndexAny(p, "/\\"); i >= 0 {
+		dir = p[:i+1]
+	}
+	return ShardInfo{Dir: dir, Base: m[1], Index: idx, Total: total}, true
+}
+
+// sortShards orders a shard set by part index.
+func sortShards(files []TreeFile) []TreeFile {
+	out := append([]TreeFile(nil), files...)
+	sort.Slice(out, func(i, j int) bool {
+		a, _ := ParseShard(out[i].Path)
+		b, _ := ParseShard(out[j].Path)
+		return a.Index < b.Index
+	})
+	return out
+}
+
+// ResolveModelSet resolves a model selection to one or more files. want may be
+// a single-file model (returns one TreeFile) or any shard / shard-set name of a
+// multi-part set (returns every shard, first part first). The shard count is
+// verified so a missing part fails before anything is installed.
+func ResolveModelSet(tree []TreeFile, want string) ([]TreeFile, error) {
+	want = strings.TrimSpace(want)
+	if want == "" {
+		f, err := ResolveFile(tree, "")
+		if err != nil {
+			return nil, err
+		}
+		return []TreeFile{f}, nil
+	}
+	// A candidate shard: exact path, case-insensitive base or suffix.
+	for _, f := range tree {
+		si, ok := ParseShard(f.Path)
+		if !ok {
+			continue
+		}
+		if f.Path == want || strings.EqualFold(base(f.Path), base(want)) ||
+			strings.HasSuffix(strings.ToLower(f.Path), strings.ToLower(base(want))) {
+			return shardSet(tree, si)
+		}
+	}
+	// The listing names a set by its prefix ("model.gguf"); accept that too.
+	for _, f := range tree {
+		si, ok := ParseShard(f.Path)
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(base(want), base(si.Base)+".gguf") ||
+			strings.EqualFold(want, si.Dir+base(si.Base)+".gguf") {
+			return shardSet(tree, si)
+		}
+	}
+	f, err := ResolveFile(tree, want)
+	if err != nil {
+		return nil, err
+	}
+	return []TreeFile{f}, nil
+}
+
+// shardSet collects and validates every shard of the set described by want.
+func shardSet(tree []TreeFile, want ShardInfo) ([]TreeFile, error) {
+	var files []TreeFile
+	for _, f := range tree {
+		si, ok := ParseShard(f.Path)
+		if !ok {
+			continue
+		}
+		if si.Dir == want.Dir && strings.EqualFold(si.Base, want.Base) {
+			files = append(files, f)
+		}
+	}
+	files = sortShards(files)
+	if len(files) != want.Total {
+		return nil, fmt.Errorf("multi-part model %s has %d of %d shards (a part is missing)", want.Base, len(files), want.Total)
+	}
+	for i, f := range files {
+		si, _ := ParseShard(f.Path)
+		if si.Index != i+1 {
+			return nil, fmt.Errorf("multi-part model %s has a gap in its shards (expected part %d, found %d)", want.Base, i+1, si.Index)
+		}
+	}
+	return files, nil
+}
 
 // IsModelFile reports whether a path is a loadable model (a .gguf that is not
 // an mmproj sidecar and not a multi-part shard).

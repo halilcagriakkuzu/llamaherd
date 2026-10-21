@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `POST /download/pause`, `/download/resume`, `/download/retry`, `/download/queue`
   (`{id}` removes a waiting job); CLI: `download queue [rm <id>]`, `download pause|resume|retry`.
   `GET /download` and the snapshot now include `queue`, `paused` and `currentId`.
+- **Multi-part GGUF downloads**: selecting a `-00001-of-000NN.gguf` shard set downloads
+  every part into the same folder (per-shard sha256 verification and resume), skips shards
+  that already completed, records one library entry/preset whose `--model` is the first
+  shard, and treats the whole set as one queue job. `GET /download/files` now includes
+  `parts` and the ordered `shards` list; `GET /download` reports `shards`/`shardIndex`.
 - **Model management in the GUI**: search/filter (favorites, recently used, vision, MTP),
   pin models, rescan the models directory, reveal a model in the file manager, copy its path,
   and delete the `.gguf` (the preset file is kept).

@@ -27,6 +27,8 @@ type dlState struct {
 	Error     string   `json:"error"`
 	Message   string   `json:"message"`
 	Files     []string `json:"files"`
+	Shards    []string `json:"shards"`
+	ShardIdx  int      `json:"shardIndex"`
 	Queue     []struct {
 		ID      string `json:"id"`
 		Repo    string `json:"repo"`

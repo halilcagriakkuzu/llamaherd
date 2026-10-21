@@ -13,7 +13,10 @@ type RepoFile struct {
 	Name  string `json:"name"`
 	Quant string `json:"quant,omitempty"` // e.g. "UD-Q4_K_XL", "BF16"
 	Size  int64  `json:"size"`
-	Parts int    `json:"parts,omitempty"` // >1: a multi-part shard set (not downloadable yet)
+	Parts int    `json:"parts,omitempty"` // >1: a multi-part shard set
+	// Shards lists every shard path of a multi-part set, in order (first shard
+	// first). Empty for a single-file model.
+	Shards []string `json:"shards,omitempty"`
 }
 
 // RepoListing groups a repository's .gguf files by role so a UI can offer them
@@ -69,7 +72,7 @@ func ListRepo(ctx context.Context, ref, token string) (RepoListing, error) {
 
 func classify(repo string, tree []TreeFile) RepoListing {
 	out := RepoListing{Repo: repo, Models: []RepoFile{}, MMProjs: []RepoFile{}, MTPDrafts: []RepoFile{}}
-	shards := map[string]*RepoFile{}
+	shards := map[string][]TreeFile{}
 	for _, f := range tree {
 		low := strings.ToLower(f.Path)
 		if !strings.HasSuffix(low, ".gguf") {
@@ -82,28 +85,31 @@ func classify(repo string, tree []TreeFile) RepoListing {
 		case IsMTPDraftFile(f.Path):
 			out.MTPDrafts = append(out.MTPDrafts, rf)
 		case shardName.MatchString(rf.Name):
-			key := shardName.FindStringSubmatch(f.Path)
-			dir := ""
-			if i := strings.LastIndex(f.Path, "/"); i >= 0 {
-				dir = f.Path[:i+1]
-			}
-			k := dir + strings.ToLower(key[1])
-			if s, ok := shards[k]; ok {
-				s.Size += f.Size
-				s.Parts++
-				continue
-			}
-			rf.Name = base(key[1]) + ".gguf"
-			rf.Parts = 1
-			shards[k] = &rf
+			si, _ := ParseShard(f.Path)
+			k := si.Dir + strings.ToLower(si.Base)
+			shards[k] = append(shards[k], f)
 		case strings.Contains(strings.ToLower(rf.Name), "imatrix"):
 			// calibration data, not a model
 		default:
 			out.Models = append(out.Models, rf)
 		}
 	}
-	for _, s := range shards {
-		out.Models = append(out.Models, *s)
+	for _, set := range shards {
+		files := sortShards(set)
+		first := files[0]
+		si, _ := ParseShard(first.Path)
+		rf := RepoFile{
+			Path:   first.Path,
+			Name:   base(si.Base) + ".gguf",
+			Quant:  QuantOf(first.Path),
+			Parts:  si.Total,
+			Shards: make([]string, len(files)),
+		}
+		for i, f := range files {
+			rf.Size += f.Size
+			rf.Shards[i] = f.Path
+		}
+		out.Models = append(out.Models, rf)
 	}
 	by := func(l []RepoFile) {
 		sort.Slice(l, func(i, j int) bool {

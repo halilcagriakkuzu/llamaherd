@@ -54,3 +54,46 @@ func TestStarter(t *testing.T) {
 		t.Fatalf("starter = %+v", s)
 	}
 }
+
+func TestResolveModelSetShards(t *testing.T) {
+	tree := []TreeFile{
+		{Path: "BF16/Model-00002-of-00002.gguf", Size: 20},
+		{Path: "BF16/Model-00001-of-00002.gguf", Size: 10},
+		{Path: "Model-Q4_K_M.gguf", Size: 400},
+	}
+	for _, want := range []string{
+		"BF16/Model-00001-of-00002.gguf",
+		"Model-00001-of-00002.gguf",
+		"BF16/Model.gguf",
+	} {
+		files, err := ResolveModelSet(tree, want)
+		if err != nil {
+			t.Fatalf("%s: %v", want, err)
+		}
+		if len(files) != 2 || files[0].Path != "BF16/Model-00001-of-00002.gguf" || files[1].Path != "BF16/Model-00002-of-00002.gguf" {
+			t.Fatalf("%s: shards = %+v", want, files)
+		}
+	}
+	one, err := ResolveModelSet(tree, "Model-Q4_K_M.gguf")
+	if err != nil || len(one) != 1 || one[0].Path != "Model-Q4_K_M.gguf" {
+		t.Fatalf("single file = %+v %v", one, err)
+	}
+	if _, err := ResolveModelSet(tree, "BF16/Model-00003-of-00003.gguf"); err == nil {
+		t.Fatal("a set with missing shards must fail")
+	}
+}
+
+func TestClassifyMultiPartShards(t *testing.T) {
+	tree := []TreeFile{
+		{Path: "BF16/Model-00001-of-00002.gguf", Size: 10},
+		{Path: "BF16/Model-00002-of-00002.gguf", Size: 20},
+	}
+	l := classify("o/r", tree)
+	if len(l.Models) != 1 {
+		t.Fatalf("models = %+v", l.Models)
+	}
+	m := l.Models[0]
+	if m.Parts != 2 || m.Size != 30 || len(m.Shards) != 2 || m.Path != "BF16/Model-00001-of-00002.gguf" {
+		t.Fatalf("multi-part row = %+v", m)
+	}
+}

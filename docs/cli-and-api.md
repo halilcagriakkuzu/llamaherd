@@ -61,7 +61,7 @@ llamaherd version
 | `GET /models`, `/presets?alias=`, `/download`, `/doctor` | — | read state |
 | `GET /logs?tail=n` (or `?after=seq`) | — | recent app/server log lines; `after` streams new ones |
 | `GET /catalog[?all=1]` | — | model picks for this machine (`all=1`: every catalog entry) |
-| `GET /download/files?ref=` | `owner/name` or URL | a repo's `.gguf` files grouped as models / vision / MTP, plus `license` and `gated` (`no` / `auto` / `manual`; gated repos need the licence accepted on Hugging Face and a token) |
+| `GET /download/files?ref=` | `owner/name` or URL | a repo's `.gguf` files grouped as models / vision / MTP, plus `license` and `gated` (`no` / `auto` / `manual`; gated repos need the licence accepted on Hugging Face and a token). Multi-part rows carry `parts` and the ordered `shards` paths. |
 | `POST /open` | `{alias, preset}` | start the server |
 | `POST /stop`, `/restart`, `/rescan` | — | stop / restart / rescan models |
 | `POST /save`, `/load` | — | persist / restore the current preset |

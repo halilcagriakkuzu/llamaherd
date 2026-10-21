@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -67,6 +68,19 @@ func TestControlAPIEndToEnd(t *testing.T) {
 	a.initBackend()
 	a.initModels()
 	a.initPresets()
+	// Use an ephemeral port: a real llama-server on the default 8090 (a
+	// developer machine) must not make this test fail.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	for alias := range a.presets {
+		for i := range a.presets[alias] {
+			a.presets[alias][i].Basic.Port = port
+		}
+	}
 	a.selModel = 0
 	srv := httptest.NewServer(api.Handler(a))
 	defer srv.Close()

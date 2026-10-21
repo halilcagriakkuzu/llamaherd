@@ -1000,13 +1000,14 @@
       title.appendChild(document.createTextNode(" " + m.name));
       const meta = document.createElement("div");
       meta.className = "dl-meta";
-      meta.textContent = m.parts > 1 ? `${sizeLabel(m.size)} · ${m.parts} parts — multi-part files are not downloadable yet` : sizeLabel(m.size);
+      meta.textContent = m.parts > 1
+        ? `${sizeLabel(m.size)} · ${m.parts} shards`
+        : sizeLabel(m.size);
       left.appendChild(title);
       left.appendChild(meta);
       row.appendChild(left);
       const btn = document.createElement("button");
       btn.className = "tiny";
-      btn.disabled = m.parts > 1;
       btn.addEventListener("click", () => {
         call("StartDownload", l.repo, m.path,
           vision && vision.sw.checked ? vision.sel.value : "none",
@@ -1043,6 +1044,7 @@
       const pct = Math.max(0, Math.min(100, d.percent || 0));
       el.dlBarInner.style.width = pct.toFixed(1) + "%";
       let txt = `${d.status || ""} ${d.file || ""} — ${pct.toFixed(1)}%  ${fmtBytes(d.received)}/${fmtBytes(d.total)}  ${fmtBytes(d.speedBps)}/s`;
+      if (d.shardCount > 1) txt = `shard ${d.shardIndex || 1}/${d.shardCount} · ` + txt;
       if (d.error) txt = "error: " + d.error;
       else if (d.message) txt = d.message;
       el.dlProgressText.textContent = txt;

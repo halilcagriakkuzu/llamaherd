@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,24 @@ type Options struct {
 
 // PartPath is the in-progress file path for a destination.
 func PartPath(dest string) string { return dest + ".part" }
+
+// FileMatches reports whether dest is already a complete copy of the expected
+// file: its size matches (when known) and, when a sha256 is supplied, its hash
+// matches. Used to skip shards that finished before a retry.
+func FileMatches(dest string, size int64, sha string) bool {
+	st, err := os.Stat(dest)
+	if err != nil || st.IsDir() {
+		return false
+	}
+	if size > 0 && st.Size() != size {
+		return false
+	}
+	if sha == "" {
+		return true
+	}
+	sum, err := fileSHA256(dest)
+	return err == nil && strings.EqualFold(sum, sha)
+}
 
 // errChecksum marks a sha256 mismatch (not retried; the .part is removed).
 var errChecksum = errors.New("checksum mismatch")

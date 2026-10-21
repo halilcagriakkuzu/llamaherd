@@ -147,6 +147,9 @@ func downloadStatus() int {
 		return 0
 	}
 	fmt.Printf("%s  %s/%s  %.1f%%  %s\n", st.Status, st.Repo, st.File, st.Percent, humanBytes(st.Received)+"/"+humanBytes(st.Total))
+	if len(st.Shards) > 1 {
+		fmt.Printf("shards %d/%d: %s\n", st.ShardIdx, len(st.Shards), strings.Join(st.Shards, ", "))
+	}
 	if st.Error != "" {
 		fmt.Fprintln(os.Stderr, "error: "+st.Error)
 		return 1
@@ -265,7 +268,7 @@ func downloadFiles(args []string) int {
 	for _, f := range l.Models {
 		note := ""
 		if f.Parts > 1 {
-			note = fmt.Sprintf("   (%d parts — not downloadable yet)", f.Parts)
+			note = fmt.Sprintf("   (%d shards, downloaded together)", f.Parts)
 		}
 		row(f, note)
 	}

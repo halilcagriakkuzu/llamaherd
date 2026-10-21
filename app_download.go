@@ -29,22 +29,27 @@ type QueuedDownload struct {
 // DownloadState is the live state of the model downloader, surfaced in the
 // Snapshot (GUI) and via GET /download (CLI/API).
 type DownloadState struct {
-	Active    bool             `json:"active"`
-	CurrentID string           `json:"currentId"`
-	Paused    bool             `json:"paused"`
-	Repo      string           `json:"repo"`
-	File      string           `json:"file"`
-	Dest      string           `json:"dest"`
-	Received  int64            `json:"received"`
-	Total     int64            `json:"total"`
-	Percent   float64          `json:"percent"`
-	SpeedBps  float64          `json:"speedBps"`
-	Status    string           `json:"status"` // idle|queued|downloading|verifying|paused|done|error|cancelled
-	Error     string           `json:"error"`
-	Message   string           `json:"message"`
-	Files     []string         `json:"files"`
-	Queue     []QueuedDownload `json:"queue"`
-	Updated   string           `json:"updated"`
+	Active    bool     `json:"active"`
+	CurrentID string   `json:"currentId"`
+	Paused    bool     `json:"paused"`
+	Repo      string   `json:"repo"`
+	File      string   `json:"file"`
+	Dest      string   `json:"dest"`
+	Received  int64    `json:"received"`
+	Total     int64    `json:"total"`
+	Percent   float64  `json:"percent"`
+	SpeedBps  float64  `json:"speedBps"`
+	Status    string   `json:"status"` // idle|queued|downloading|verifying|paused|done|error|cancelled
+	Error     string   `json:"error"`
+	Message   string   `json:"message"`
+	Files     []string `json:"files"`
+	// Shards is the resolved multi-part shard list (empty for a single file) and
+	// ShardIndex the part currently transferring (1-based).
+	Shards     []string         `json:"shards,omitempty"`
+	ShardIndex int              `json:"shardIndex,omitempty"`
+	ShardCount int              `json:"shardCount,omitempty"`
+	Queue      []QueuedDownload `json:"queue"`
+	Updated    string           `json:"updated"`
 }
 
 // DownloadSnapshot returns the cached downloader state (cheap; snapshot-safe).
