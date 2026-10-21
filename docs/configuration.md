@@ -69,6 +69,11 @@ override it with `LLAMAHERD_API_TOKEN`.
 `./library` next to the working directory (a source checkout) wins, so development and
 tests use the repo's files.
 
+The last selected/started model and preset are remembered in
+`<data dir>/last-run.json` and restored on the next launch (the server is never
+auto-started). Deleting or renaming the model simply falls back to the normal first-model
+selection.
+
 ## Presets: `configs/<alias>.json`
 
 Each model has an alias (the file name, lower-cased, dots → dashes) and one preset file

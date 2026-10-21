@@ -494,6 +494,53 @@ func BenchmarksDir() string {
 	return filepath.Join(DataDir(), "benchmarks")
 }
 
+// LastRun remembers the model/preset the user last selected or started, so a
+// new window opens on the same config. It lives in the per-user data directory,
+// not in configs/, because it is UI state rather than a reusable preset.
+type LastRun struct {
+	Alias  string `json:"alias"`
+	Preset string `json:"preset"`
+	At     int64  `json:"at,omitempty"`
+}
+
+// LastRunFile is the path of the remembered selection.
+func LastRunFile() string {
+	return filepath.Join(DataDir(), "last-run.json")
+}
+
+// LoadLastRun reads the remembered selection. ok=false when none was saved.
+func LoadLastRun() (LastRun, bool) {
+	var l LastRun
+	data, err := os.ReadFile(LastRunFile())
+	if err != nil {
+		return l, false
+	}
+	if json.Unmarshal(data, &l) != nil || strings.TrimSpace(l.Alias) == "" {
+		return LastRun{}, false
+	}
+	return l, true
+}
+
+// SaveLastRun writes the remembered selection (0600, atomic replace).
+func SaveLastRun(l LastRun) error {
+	l.Alias = strings.TrimSpace(l.Alias)
+	if l.Alias == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(LastRunFile()), 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(l, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := LastRunFile() + ".tmp"
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, LastRunFile())
+}
+
 // CaseInsensitivePaths reports whether this OS normally uses a case-insensitive
 // filesystem. macOS can be configured case-sensitive, but the default and the
 // Windows behaviour are what model/config lookups must match.

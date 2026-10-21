@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Remembered selection**: the model/preset you last selected or started is stored in
+  `<data dir>/last-run.json` and restored (selected, with its config applied) on the next
+  launch. Deleting/renaming the model falls back to the normal first-model selection; the
+  server is never auto-started.
 - **Top-level views**: Config, Performance & benchmarks and llama.cpp are now separate
   screens behind a top tab bar, so the performance charts and benchmark table no longer
   squeeze the config form (and llama.cpp gets the full width). Logs stay collapsed by

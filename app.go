@@ -298,6 +298,7 @@ func (a *App) startup(ctx context.Context) {
 		a.cfg = p[0].AsConfig()
 	}
 	a.selPreset = 0
+	a.restoreLastRun()
 
 	a.mgr.AttachExternal(a.cfg.Basic.Host, a.cfg.Basic.Port)
 	if a.mgr.Info().Status == control.StatusRunning {
@@ -456,6 +457,7 @@ func (a *App) SelectModel(index int) {
 		a.dirty = false
 		a.warn = ""
 		a.markUsedLocked(index)
+		a.rememberSelectionLocked()
 	}
 	a.emitStateLocked()
 }
@@ -487,6 +489,7 @@ func (a *App) SelectPreset(name string) {
 	a.applyPreset(a.presetIndex(name))
 	a.dirty = false
 	a.warn = ""
+	a.rememberSelectionLocked()
 	a.Log(fmt.Sprintf("preset: %s/%s", a.alias(), name))
 	a.emitStateLocked()
 }
@@ -642,6 +645,7 @@ func (a *App) StartServer() {
 		a.emitState()
 		return
 	}
+	a.rememberRun(cfg.Basic.Alias, presetName)
 	// Freeze the launched config: the Status panel reports THIS, even if the
 	// user later picks another model/preset in the form.
 	a.stateMu.Lock()
@@ -975,6 +979,7 @@ func (a *App) startupHeadless() {
 		a.cfg = p[0].AsConfig()
 	}
 	a.selPreset = 0
+	a.restoreLastRun()
 	a.mgr.AttachExternal(a.cfg.Basic.Host, a.cfg.Basic.Port)
 	if a.mgr.Info().Status == control.StatusRunning {
 		rc := a.cfg
