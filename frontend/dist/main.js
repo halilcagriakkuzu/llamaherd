@@ -2005,6 +2005,11 @@
       td(b.gpuLayers || "—", "num");
       td((b.genTokPerSec || 0).toFixed(1), "num" + (i === 0 ? " best" : ""));
       td((b.promptTokPerSec || 0).toFixed(1), "num");
+      const pe = td(b.promptEvalMs ? (b.promptEvalMs / 1000).toFixed(2) + "s" : "—", "num");
+      pe.title = b.promptEvalMs ? "prompt evaluation from /metrics (delta around the run)" : "no /metrics counters";
+      const slots = td(b.slotsActive || b.queueDepth ? `${b.slotsBusy || 0}/${b.slotsActive || 0} · q${b.queueDepth || 0}` : "—", "num");
+      slots.title = "busy/active slots and deferred requests";
+      td(b.contextTokens ? b.contextTokens.toLocaleString() : (b.kvCacheRatio ? (b.kvCacheRatio * 100).toFixed(0) + "%" : "—"), "num");
       td(fmtMB(b.peakVramMB), "num");
       td(fmtWhen(b.at));
       const st = td("");

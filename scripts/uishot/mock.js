@@ -58,8 +58,8 @@
       gpuUtil: 88, gpuTemp: 61,
     })) : [],
     benchmarks: [
-      { modelId: "qwen3-8-27b-ud-iq4_xs", model: "Qwen3.8-27B-UD-IQ4_XS", alias: "qwen3-8-27b-ud-iq4_xs", preset: "default", fingerprint: "3f2a91c47b0d55e1", at: 1760000100, context: 25556, gpuLayers: "all", promptN: 214, promptTokPerSec: 612.3, genN: 128, genTokPerSec: 47.5, peakVramMB: 15258, durationMs: 3100 },
-      { modelId: "qwen3-8-27b-ud-iq4_xs", model: "Qwen3.8-27B-UD-IQ4_XS", alias: "qwen3-8-27b-ud-iq4_xs", preset: "high-ctx", fingerprint: "8d10ee5c22a0c901", at: 1759990000, context: 51200, gpuLayers: "48", promptN: 214, promptTokPerSec: 431.8, genN: 128, genTokPerSec: 39.2, peakVramMB: 16010, durationMs: 3800 },
+      { modelId: "qwen3-8-27b-ud-iq4_xs", model: "Qwen3.8-27B-UD-IQ4_XS", alias: "qwen3-8-27b-ud-iq4_xs", preset: "default", fingerprint: "3f2a91c47b0d55e1", at: 1760000100, context: 25556, gpuLayers: "all", promptN: 214, promptTokPerSec: 612.3, genN: 128, genTokPerSec: 47.5, peakVramMB: 15258, durationMs: 3100, promptEvalMs: 349, slotsActive: 1, slotsBusy: 1, queueDepth: 0, contextTokens: 214 },
+      { modelId: "qwen3-8-27b-ud-iq4_xs", model: "Qwen3.8-27B-UD-IQ4_XS", alias: "qwen3-8-27b-ud-iq4_xs", preset: "high-ctx", fingerprint: "8d10ee5c22a0c901", at: 1759990000, context: 51200, gpuLayers: "48", promptN: 214, promptTokPerSec: 431.8, genN: 128, genTokPerSec: 39.2, peakVramMB: 16010, durationMs: 3800, promptEvalMs: 495, slotsActive: 2, slotsBusy: 1, queueDepth: 1, kvCacheRatio: 0.03 },
       { modelId: "lfm2", model: "LFM2.5-24B-A2B-IQ3_M", alias: "lfm2", preset: "default", fingerprint: "aabbccddeeff0011", at: 1759980000, context: 32768, gpuLayers: "all", promptN: 214, promptTokPerSec: 390.1, genN: 128, genTokPerSec: 61.4, peakVramMB: 13980, durationMs: 2600 },
     ],
     benchmarking: false,

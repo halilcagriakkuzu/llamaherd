@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Benchmark `/metrics` counters**: new Advanced → Runtime **Metrics** toggle adds
+  `--metrics`. Benchmark runs scrape `/metrics` before/after and store prompt-eval time,
+  busy/active slots, queue depth and context/KV usage in `schema.Benchmark`; the table shows
+  them, and older builds without the endpoint still benchmark with empty counters.
 - **Non-NVIDIA GPU support**: a small GPU provider abstraction now probes NVIDIA
   (`nvidia-smi`, unchanged), AMD (`rocm-smi`), Intel (`xpu-smi`) and Apple Silicon
   (unified memory via `sysctl`). `doctor` names the active vendor; unknown values stay `—`

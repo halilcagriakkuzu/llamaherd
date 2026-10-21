@@ -329,6 +329,11 @@
                 <input id="f-perf" data-key="perf" data-group="advanced" type="checkbox">
               </div>
 
+              <div class="field toggle">              <label class="fl" for="f-metrics">Metrics <span class="flag">--metrics</span></label>
+                <input id="f-metrics" data-key="metrics" data-group="advanced" type="checkbox">
+                <div class="field-hint" title="Expose /metrics for benchmark counters (slots, queue, KV usage)">Prometheus endpoint for benchmark counters</div>
+              </div>
+
 
               <div class="field">              <label class="fl" for="f-sleepIdle">Sleep idle (s) <span class="flag">--sleep-idle-seconds</span></label>
                 <input id="f-sleepIdle" data-key="sleepIdle" data-group="advanced" type="number" min="0" max="86400">
@@ -489,7 +494,7 @@
           <thead>
             <tr>
               <th>Model</th><th>Config</th><th>ctx</th><th>-ngl</th>
-              <th>gen tok/s</th><th>prompt tok/s</th><th>VRAM</th><th>when</th><th></th>
+              <th>gen tok/s</th><th>prompt tok/s</th><th>p-eval</th><th>slots / queue</th><th>ctx used</th><th>VRAM</th><th>when</th><th></th>
             </tr>
           </thead>
           <tbody id="benchBody"></tbody>

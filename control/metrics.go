@@ -3,7 +3,10 @@ package control
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -105,4 +108,85 @@ func HumanMB(mb int) string {
 // restrictions).
 func GPUUtilTemp() (util, temp int) {
 	return ActiveGPU().UtilTemp()
+}
+
+// MetricsSnapshot is the subset of llama-server's Prometheus /metrics endpoint
+// useful for a benchmark. Zero values mean "not reported" (older build or
+// --metrics off).
+type MetricsSnapshot struct {
+	PromptSecondsTotal float64
+	SlotsActive        int
+	SlotsBusy          int
+	QueueDepth         int
+	ContextTokens      int
+	KVCacheRatio       float64
+}
+
+// ScrapeMetrics reads /metrics from a running llama-server. ok=false means the
+// endpoint is unavailable (an older build, --metrics off, or a network error);
+// callers must treat the counters as empty rather than failing.
+func ScrapeMetrics(addr string) (MetricsSnapshot, bool) {
+	cl := &http.Client{Timeout: 2 * time.Second}
+	resp, err := cl.Get("http://" + addr + "/metrics")
+	if err != nil {
+		return MetricsSnapshot{}, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return MetricsSnapshot{}, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return MetricsSnapshot{}, false
+	}
+	return parseMetrics(string(body)), true
+}
+
+// parseMetrics extracts the counters from Prometheus exposition text.
+func parseMetrics(text string) MetricsSnapshot {
+	var s MetricsSnapshot
+	vals := map[string]float64{}
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		name := line
+		if i := strings.IndexAny(name, "{ "); i >= 0 {
+			name = name[:i]
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		v, err := strconv.ParseFloat(fields[len(fields)-1], 64)
+		if err != nil {
+			continue
+		}
+		vals[strings.ToLower(name)] = v
+	}
+	s.PromptSecondsTotal = metricValue(vals, "prompt_seconds_total", "prompt_eval_seconds", "prompt_seconds")
+	s.SlotsActive = int(metricValue(vals, "slots_active", "requests_processing"))
+	s.SlotsBusy = int(metricValue(vals, "slots_busy", "n_busy_slots"))
+	s.QueueDepth = int(metricValue(vals, "requests_deferred", "queue_depth", "requests_queued"))
+	s.ContextTokens = int(metricValue(vals, "kv_cache_tokens", "kv_cache_used_cells"))
+	s.KVCacheRatio = metricValue(vals, "kv_cache_usage_ratio", "kv_cache_usage")
+	return s
+}
+
+// metricValue returns the first matching metric (exact, then substring).
+func metricValue(vals map[string]float64, names ...string) float64 {
+	for _, n := range names {
+		if v, ok := vals[n]; ok {
+			return v
+		}
+	}
+	for _, n := range names {
+		for k, v := range vals {
+			if strings.Contains(k, n) {
+				return v
+			}
+		}
+	}
+	return 0
 }

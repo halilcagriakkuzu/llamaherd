@@ -529,6 +529,9 @@ func BuildArgs(cfg schema.Config) []string {
 	if adv.Perf {
 		args = append(args, "--perf")
 	}
+	if adv.Metrics {
+		args = append(args, "--metrics")
+	}
 	if adv.SleepIdle > 0 {
 		add("--sleep-idle-seconds", fmt.Sprint(adv.SleepIdle))
 	}

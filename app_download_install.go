@@ -199,7 +199,7 @@ func (a *App) buildDownloadPreset(alias, model, mmproj, draft string, embeddedMT
 		Context: 51200, GPULayers: "all", ParallelSlots: 1,
 		FlashAttention: "on", KCache: "q8_0", VCache: "q8_0",
 		Jinja: true, ReasoningFmt: "deepseek",
-	}, Advanced: schema.Advanced{Fit: "off", SleepIdle: 300}}
+	}, Advanced: schema.Advanced{Fit: "off", Metrics: true, SleepIdle: 300}}
 	if mmproj != "" {
 		p.Advanced.MMProj = mmproj
 		p.Advanced.NoMMProjOffload = true

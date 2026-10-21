@@ -22,7 +22,8 @@ func TestBenchmarkPersistenceAndFingerprint(t *testing.T) {
 		t.Error("a config edit must change the fingerprint")
 	}
 
-	first := schema.Benchmark{ModelID: "a", Preset: "fast", Fingerprint: fp, At: 1, GenTokS: 40}
+	first := schema.Benchmark{ModelID: "a", Preset: "fast", Fingerprint: fp, At: 1, GenTokS: 40,
+		PromptEvalMS: 123.5, SlotsActive: 2, SlotsBusy: 1, QueueDepth: 3, ContextTokens: 4096, KVCacheRatio: 0.25}
 	if err := SaveBenchmark(dir, first); err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +35,9 @@ func TestBenchmarkPersistenceAndFingerprint(t *testing.T) {
 	second := first
 	second.Fingerprint = ConfigFingerprint(changed)
 	second.At = 2
+	second.PromptEvalMS = 200
+	second.QueueDepth = 0
+	second.KVCacheRatio = 0.5
 	if err := SaveBenchmark(dir, second); err != nil {
 		t.Fatal(err)
 	}
@@ -43,6 +47,9 @@ func TestBenchmarkPersistenceAndFingerprint(t *testing.T) {
 	}
 	if list[0].At != 2 {
 		t.Errorf("newest first, got %+v", list)
+	}
+	if list[0].PromptEvalMS != 200 || list[0].KVCacheRatio != 0.5 || list[1].PromptEvalMS != 123.5 || list[1].QueueDepth != 3 {
+		t.Errorf("metrics counters did not round-trip: %+v", list)
 	}
 	if all := AllBenchmarks(dir); len(all) != 2 {
 		t.Errorf("AllBenchmarks = %d", len(all))

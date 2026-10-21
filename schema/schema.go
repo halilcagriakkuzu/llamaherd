@@ -53,14 +53,17 @@ type Advanced struct {
 	NoMMProjOffload bool   `json:"noMMProjOffload"`
 	Fit             string `json:"fit"`
 	Perf            bool   `json:"perf"`
-	SleepIdle       int    `json:"sleepIdle"`
-	CacheRAM        int    `json:"cacheRAM"`
-	Mlock           bool   `json:"mlock"`
-	NoMmap          bool   `json:"noMmap"`
-	CPUThreads      int    `json:"cpuThreads"`
-	UBatch          int    `json:"ubatch"`
-	Batch           int    `json:"batch"`
-	OverrideTensor  string `json:"overrideTensor"`
+	// Metrics enables llama-server's Prometheus endpoint (--metrics); benchmark
+	// runs use it to record slots/queue/context counters.
+	Metrics        bool   `json:"metrics"`
+	SleepIdle      int    `json:"sleepIdle"`
+	CacheRAM       int    `json:"cacheRAM"`
+	Mlock          bool   `json:"mlock"`
+	NoMmap         bool   `json:"noMmap"`
+	CPUThreads     int    `json:"cpuThreads"`
+	UBatch         int    `json:"ubatch"`
+	Batch          int    `json:"batch"`
+	OverrideTensor string `json:"overrideTensor"`
 }
 
 // Config is the one shared config shape: both forms, all presets, command-line
@@ -196,4 +199,11 @@ type Benchmark struct {
 	GenTokS    float64 `json:"genTokPerSec"`
 	PeakVRAMMB int     `json:"peakVramMB"`
 	DurationMS int64   `json:"durationMs"`
+	// /metrics counters captured around the run (empty/zero on older builds).
+	PromptEvalMS  float64 `json:"promptEvalMs,omitempty"`
+	SlotsActive   int     `json:"slotsActive,omitempty"`
+	SlotsBusy     int     `json:"slotsBusy,omitempty"`
+	QueueDepth    int     `json:"queueDepth,omitempty"`
+	ContextTokens int     `json:"contextTokens,omitempty"`
+	KVCacheRatio  float64 `json:"kvCacheRatio,omitempty"`
 }

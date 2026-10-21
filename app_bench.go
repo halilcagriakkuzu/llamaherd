@@ -97,20 +97,29 @@ func (a *App) RunBenchmark() (schema.Benchmark, error) {
 	}
 
 	b := schema.Benchmark{
-		ModelID:     modelID,
-		Model:       modelName,
-		Alias:       rc.Basic.Alias,
-		Preset:      preset,
-		Fingerprint: store.ConfigFingerprint(*rc),
-		At:          time.Now().Unix(),
-		Context:     rc.Basic.Context,
-		GPULayers:   rc.Basic.GPULayers,
-		PromptN:     sample.PromptTokens,
-		PromptTokS:  sample.PromptTokS,
-		GenN:        sample.GenTokens,
-		GenTokS:     sample.GenTokS,
-		PeakVRAMMB:  peak,
-		DurationMS:  sample.DurationMS,
+		ModelID:       modelID,
+		Model:         modelName,
+		Alias:         rc.Basic.Alias,
+		Preset:        preset,
+		Fingerprint:   store.ConfigFingerprint(*rc),
+		At:            time.Now().Unix(),
+		Context:       rc.Basic.Context,
+		GPULayers:     rc.Basic.GPULayers,
+		PromptN:       sample.PromptTokens,
+		PromptTokS:    sample.PromptTokS,
+		GenN:          sample.GenTokens,
+		GenTokS:       sample.GenTokS,
+		PeakVRAMMB:    peak,
+		DurationMS:    sample.DurationMS,
+		PromptEvalMS:  sample.PromptEvalMS,
+		SlotsActive:   sample.SlotsActive,
+		SlotsBusy:     sample.SlotsBusy,
+		QueueDepth:    sample.QueueDepth,
+		ContextTokens: sample.ContextTokens,
+		KVCacheRatio:  sample.KVCacheRatio,
+	}
+	if b.ContextTokens == 0 && b.KVCacheRatio > 0 && rc.Basic.Context > 0 {
+		b.ContextTokens = int(b.KVCacheRatio * float64(rc.Basic.Context))
 	}
 	if err := store.SaveBenchmark(settings.BenchmarksDir(), b); err != nil {
 		a.Log("bench: could not save the result: " + err.Error())

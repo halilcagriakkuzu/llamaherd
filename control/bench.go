@@ -30,6 +30,13 @@ type BenchSample struct {
 	GenMS        float64
 	GenTokS      float64
 	DurationMS   int64
+	// /metrics counters (zero when the endpoint is unavailable).
+	PromptEvalMS  float64
+	SlotsActive   int
+	SlotsBusy     int
+	QueueDepth    int
+	ContextTokens int
+	KVCacheRatio  float64
 }
 
 // DefaultBenchPrompt is deliberately fixed: every run must send the same input
@@ -77,6 +84,7 @@ func RunBenchmark(ctx context.Context, addr string, opts BenchOptions) (BenchSam
 	}
 	req.Header.Set("Content-Type", "application/json")
 	started := time.Now()
+	before, _ := ScrapeMetrics(addr)
 	cl := &http.Client{Timeout: timeout}
 	resp, err := cl.Do(req)
 	if err != nil {
@@ -116,6 +124,16 @@ func RunBenchmark(ctx context.Context, addr string, opts BenchOptions) (BenchSam
 	}
 	if s.GenTokS <= 0 && s.GenMS > 0 {
 		s.GenTokS = float64(s.GenTokens) / (s.GenMS / 1000)
+	}
+	if after, ok := ScrapeMetrics(addr); ok {
+		if after.PromptSecondsTotal >= before.PromptSecondsTotal {
+			s.PromptEvalMS = (after.PromptSecondsTotal - before.PromptSecondsTotal) * 1000
+		}
+		s.SlotsActive = after.SlotsActive
+		s.SlotsBusy = after.SlotsBusy
+		s.QueueDepth = after.QueueDepth
+		s.ContextTokens = after.ContextTokens
+		s.KVCacheRatio = after.KVCacheRatio
 	}
 	return s, nil
 }

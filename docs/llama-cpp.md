@@ -23,5 +23,13 @@ come from `llamaDir` / `llamaBuildDir`. The script's own overrides: `LLAMA_DIR`,
 `BUILD_DIR`, `CUDA_ARCH` (auto-detected from `nvidia-smi`, else `native`), `JOBS`,
 `GIT_PULL_ARGS`.
 
+## Metrics endpoint (`--metrics`)
+
+The Advanced → Runtime **Metrics** toggle passes `--metrics`, which makes llama-server expose
+Prometheus counters at `http://<host>:<port>/metrics` (slots, deferred requests, prompt-eval
+seconds, KV-cache usage). Benchmark runs scrape it before and after the fixed prompt and store
+the deltas/gauges in the result; the benchmark table shows prompt-eval time, busy/active slots,
+queue depth and context usage. Older builds without `/metrics` simply leave those fields empty.
+
 The tab can also list and **force-stop** every `llama-server` process, including ones
 LlamaHerd did not start (SIGTERM, then SIGKILL after 4 s).

@@ -424,7 +424,7 @@ func defaultPreset(alias, modelPath string) schema.Preset {
 			Jinja:          true,
 			ReasoningFmt:   "deepseek",
 		},
-		Advanced: schema.Advanced{Fit: "off", SleepIdle: 300},
+		Advanced: schema.Advanced{Fit: "off", Metrics: true, SleepIdle: 300},
 	}
 	// Keep the synthesized preset inside the GPU budget: choose a context that
 	// fits and then the largest -ngl that still fits (otherwise the guard
