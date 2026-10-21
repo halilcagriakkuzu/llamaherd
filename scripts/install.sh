@@ -41,7 +41,7 @@ PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR=""
 DATA_DIR="${LLAMAHERD_DATA_DIR:-}"
 CONFIG_DIR="${LLAMAHERD_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/llamaherd}"
-DEPS="ask"                      # ask | yes | no
+DEPS="yes"                      # yes | no
 WITH_DESKTOP=1
 WITH_CONFIG=1
 DRY_RUN=0
@@ -117,14 +117,6 @@ ask() {
   printf '%s' "$reply"
 }
 
-confirm() {
-  [ "$ASSUME_YES" = 1 ] && return 0
-  [ -t 0 ] || return 1
-  local reply=""
-  read -r -p "$1 [y/N] " reply || true
-  case "$reply" in [yY] | [yY][eE][sS]) return 0 ;; *) return 1 ;; esac
-}
-
 # run CMD... honors --dry-run for simple (non-redirect) commands.
 run() {
   if [ "$DRY_RUN" = 1 ]; then
@@ -156,11 +148,12 @@ Install layout:
   --data-dir DIR         configs/ + library/ data dir (default: XDG data dir)
 
 Behavior:
-  --with-deps            install system dependencies without asking
+  --with-deps            install missing system packages (the default)
   --no-deps              never touch system packages
   --no-desktop           skip the .desktop entry / .app bundle / Windows shortcut
   --no-config            do not write the user config file
-  --icon FILE            PNG icon to install (default: bundled assets/)
+  --icon FILE            icon to install (PNG for the desktop entry, ICO for the
+                         Windows shortcut; default: bundled assets/)
   -y, --yes              assume yes (non-interactive)
   --dry-run              print what would happen; change nothing
 
@@ -348,6 +341,40 @@ detect_webkit_pkgs() {
   fi
 }
 
+# ldconfig_bin prints ldconfig even when /sbin is not on PATH.
+ldconfig_bin() {
+  if have ldconfig; then command -v ldconfig; return 0; fi
+  local c
+  for c in /sbin/ldconfig /usr/sbin/ldconfig; do
+    [ -x "$c" ] && { printf '%s' "$c"; return 0; }
+  done
+  return 0
+}
+
+# gui_libs_present is true when the GUI libraries are already usable, so a
+# re-run does not need sudo for packages that are there.
+gui_libs_present() {
+  if [ "${MODE:-}" = "source" ]; then
+    have pkg-config || return 1
+    pkg-config --exists gtk+-3.0 2>/dev/null || return 1
+    pkg-config --exists webkit2gtk-4.1 2>/dev/null ||
+      pkg-config --exists webkit2gtk-4.0 2>/dev/null
+    return
+  fi
+  local ld libs
+  ld="$(ldconfig_bin)"
+  [ -n "$ld" ] || return 1
+  libs="$("$ld" -p 2>/dev/null || true)"
+  case "$libs" in
+    *libgtk-3*) ;;
+    *) return 1 ;;
+  esac
+  case "$libs" in
+    *libwebkit2gtk-4*) ;;
+    *) return 1 ;;
+  esac
+}
+
 install_deps() {
   [ "$DEPS" = "no" ] && { info "skipping system dependencies (--no-deps)"; return 0; }
 
@@ -357,6 +384,11 @@ install_deps() {
       info "Run: xcode-select --install"
       [ "$MODE" = "release" ] || die "cannot build without the Command Line Tools"
     fi
+    return 0
+  fi
+
+  if gui_libs_present; then
+    info "GUI libraries already installed"
     return 0
   fi
 
@@ -380,29 +412,31 @@ install_deps() {
     return 0
   fi
 
-  log "System dependencies needed: $packages"
-  if [ "$DEPS" = "ask" ] && ! confirm "Install these system packages now?"; then
-    warn "skipped; install them manually if the GUI fails to load"
-    return 0
-  fi
-
+  log "Installing system dependencies: $packages"
   local SUDO=""
   [ "$(id -u)" -ne 0 ] && SUDO="sudo"
   if [ -n "$SUDO" ] && ! have sudo; then
-    warn "sudo not found; run as root or install dependencies manually"
+    warn "sudo not found; install $packages as root, then re-run"
     return 0
   fi
 
+  local ok=0
   if have apt-get; then
-    run $SUDO apt-get update
+    run $SUDO apt-get update || warn "apt-get update failed; trying the install anyway"
     # shellcheck disable=SC2086
-    run $SUDO apt-get install -y $packages
+    if run $SUDO apt-get install -y $packages; then ok=1; fi
   elif have dnf; then
-    run $SUDO dnf install -y $packages
+    if run $SUDO dnf install -y $packages; then ok=1; fi
   elif have pacman; then
-    run $SUDO pacman -Sy --noconfirm $packages
+    if run $SUDO pacman -Sy --noconfirm $packages; then ok=1; fi
   elif have zypper; then
-    run $SUDO zypper --non-interactive install $packages
+    if run $SUDO zypper --non-interactive install $packages; then ok=1; fi
+  fi
+  if [ "$ok" = 1 ]; then
+    info "system dependencies installed"
+  else
+    warn "system packages could not be installed; the GUI may not start"
+    info "install them manually or re-run this installer with --with-deps"
   fi
 }
 
@@ -957,9 +991,29 @@ write_config() {
 }
 
 resolve_icon() {
-  if [ -n "$ICON_SRC" ]; then printf '%s' "$ICON_SRC"; return; fi
+  if [ -n "$ICON_SRC" ]; then
+    case "$ICON_SRC" in
+      *.ico) ;; # the .desktop entry needs a PNG; use the bundled one
+      *) printf '%s' "$ICON_SRC"; return ;;
+    esac
+  fi
   local c
   for c in "$ASSET_DIR/llamaherd.png" "$REPO_ROOT/assets/llamaherd.png"; do
+    [ -f "$c" ] && { printf '%s' "$c"; return; }
+  done
+}
+
+# resolve_icon_ico finds the Windows .ico (the desktop shortcut needs one).
+resolve_icon_ico() {
+  case "$ICON_SRC" in
+    *.ico) printf '%s' "$ICON_SRC"; return ;;
+  esac
+  local c
+  for c in \
+    "$ASSET_DIR/llamaherd.ico" \
+    "$SOURCE_DIR/assets/llamaherd.ico" \
+    "$REPO_ROOT/assets/llamaherd.ico" \
+    "$REPO_ROOT/build/windows/icon.ico"; do
     [ -f "$c" ] && { printf '%s' "$c"; return; }
   done
 }
@@ -1078,27 +1132,32 @@ install_windows_shortcut() {
   fi
 
   log "Creating Windows Desktop / Start menu shortcuts (LlamaHerd.lnk)"
-  local tmp icon
+  local tmp ico ico_win=""
   tmp="$(mktemp -d)"
-  icon="$PREFIX/share/icons/hicolor/256x256/apps/$APP.png"
-  [ -f "$icon" ] || icon="$(resolve_icon)"
+  ico="$(resolve_icon_ico)"
+  if [ -n "$ico" ]; then
+    ico_win="$(wslpath -w "$ico" 2>/dev/null || true)"
+  else
+    warn "no .ico found; the shortcut will use the default icon"
+  fi
   cat >"$tmp/shortcut.ps1" <<'PS'
-param([string]$Distro, [string]$Target, [string]$IconPng)
+param([string]$Distro, [string]$Target, [string]$IconIco)
 $ErrorActionPreference = 'Stop'
 $wslg = 'C:\Program Files\WSL\wslg.exe'
 if (-not (Test-Path $wslg)) { $wslg = Join-Path $env:SystemRoot 'System32\wsl.exe' }
-$icon = Join-Path $env:USERPROFILE 'LlamaHerd\icon.ico'
-if ($IconPng -and (Test-Path $IconPng)) {
-  New-Item -ItemType Directory -Force -Path (Split-Path $icon) | Out-Null
-  try {
-    Add-Type -AssemblyName System.Drawing
-    $bmp = [System.Drawing.Bitmap]::FromFile($IconPng)
-    $ico = [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
-    $fs = [System.IO.File]::Create($icon)
-    $ico.Save($fs)
-    $fs.Close()
-  } catch { $icon = $null }
-} else { $icon = $null }
+$icon = $null
+if ($IconIco -and (Test-Path $IconIco)) {
+  # Copy under a content-hashed name so Explorer does not keep a stale icon.
+  $iconDir = Join-Path $env:USERPROFILE 'LlamaHerd'
+  New-Item -ItemType Directory -Force -Path $iconDir | Out-Null
+  $hash = (Get-FileHash -Algorithm SHA1 $IconIco).Hash.Substring(0, 8).ToLower()
+  $icon = Join-Path $iconDir "icon-$hash.ico"
+  Copy-Item -Force $IconIco $icon
+  Get-ChildItem $iconDir -Filter 'icon*.ico' -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -ne $icon } | Remove-Item -Force -ErrorAction SilentlyContinue
+} else {
+  Write-Warning "LlamaHerd icon not found ($IconIco); using the default icon"
+}
 $shell = New-Object -ComObject WScript.Shell
 foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
   $lnk = $shell.CreateShortcut((Join-Path $dir 'LlamaHerd.lnk'))
@@ -1113,7 +1172,7 @@ PS
   run "$ps" -NoProfile -NonInteractive -ExecutionPolicy Bypass \
     -File "$(wslpath -w "$tmp/shortcut.ps1")" \
     -Distro "$WSL_DISTRO_NAME" -Target "$BIN_DIR/$APP-gui" \
-    -IconPng "$(wslpath -w "$icon" 2>/dev/null || true)" && WIN_SHORTCUT=1
+    -IconIco "$ico_win" && WIN_SHORTCUT=1
 }
 
 # remove_windows_shortcut deletes the shortcuts install_windows_shortcut made.
@@ -1202,11 +1261,20 @@ main() {
     fi
     [ "${WIN_SHORTCUT:-0}" = 1 ] &&
       info "     A 'LlamaHerd' shortcut is also on the Windows desktop / Start menu."
-    if [ "$OS" = "linux" ] && have ldconfig &&
-      ! ldconfig -p 2>/dev/null | grep -q 'libwebkit2gtk-4'; then
-      warn "the GTK/WebKit GUI libraries look missing; install them with:"
-      info "  sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0"
-      info "  (or re-run this installer with --with-deps)"
+    if [ "$OS" = "linux" ]; then
+      local ld libs
+      ld="$(ldconfig_bin)"
+      if [ -n "$ld" ]; then
+        libs="$("$ld" -p 2>/dev/null || true)"
+        case "$libs" in
+          *libwebkit2gtk-4*) ;;
+          *)
+            warn "the GTK/WebKit GUI libraries look missing; install them with:"
+            info "  sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0"
+            info "  (or re-run this installer with --with-deps)"
+            ;;
+        esac
+      fi
     fi
   fi
   echo

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Generate the LlamaHerd icon: build/windows/icon.ico (multi-size) and
-assets/llamaherd.png (512 px, used by .desktop entries and the macOS bundle).
+"""Generate the LlamaHerd icon: assets/llamaherd.png (512 px, used by .desktop
+entries and the macOS bundle) and the multi-size assets/llamaherd.ico (shipped
+in release archives for the Windows shortcuts; also copied to
+build/windows/icon.ico for the Windows executable).
 
 Design: a front-facing llama head on a warm orange rounded square, with a green
 "server running" dot. Drawn at 2048 px and downsampled for clean edges.
@@ -77,7 +79,8 @@ if __name__ == "__main__":
     ico = os.path.join(out_dir, "icon.ico")
     # BMP-encoded entries: the most compatible form for Explorer/shortcuts
     # (PNG-compressed small sizes can show up as a blank document icon).
-    big.save(ico, sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)], bitmap_format="bmp")
+    ico_sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
+    big.save(ico, sizes=ico_sizes, bitmap_format="bmp")
     print("wrote", ico)
 
     assets_dir = os.path.join(root, "assets")
@@ -85,3 +88,8 @@ if __name__ == "__main__":
     png = os.path.join(assets_dir, "llamaherd.png")
     img.save(png, format="PNG")
     print("wrote", png)
+
+    # Shipped in release archives so the WSL installer can set the shortcut icon.
+    ico_asset = os.path.join(assets_dir, "llamaherd.ico")
+    big.save(ico_asset, sizes=ico_sizes, bitmap_format="bmp")
+    print("wrote", ico_asset)

@@ -85,7 +85,7 @@ jobs:
         run: |
           mkdir -p dist/package
           CGO_ENABLED=1 go build -tags "${{ matrix.tags }}" -ldflags "-X main.version=${VERSION}" -o "dist/package/${{ matrix.bin }}" .
-          cp assets/llamaherd.png LICENSE README.md dist/package/
+          cp assets/llamaherd.png assets/llamaherd.ico LICENSE README.md dist/package/
 
       # Wails v2 on Windows needs no cgo (WebView2 loader is embedded).
       - name: Build (Windows)
@@ -96,7 +96,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist/package | Out-Null
           go build -tags "${{ matrix.tags }}" -ldflags "-X main.version=$env:VERSION" -o "dist/package/${{ matrix.bin }}" .
-          Copy-Item assets/llamaherd.png, LICENSE, README.md dist/package/
+          Copy-Item assets/llamaherd.png, assets/llamaherd.ico, LICENSE, README.md dist/package/
 
       - name: Package (tar.gz)
         if: runner.os != 'Windows'

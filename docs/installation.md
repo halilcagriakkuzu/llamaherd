@@ -32,7 +32,7 @@ Use `bash`, not `sh` (the installer uses bash features).
 | `--from-release` / `--from-source` | force the release download or a local source build |
 | `--release-tag TAG`, `--repo OWNER/REPO` | which release / repository to use |
 | `--prefix DIR`, `--bin-dir DIR`, `--data-dir DIR` | install locations (default prefix `~/.local`) |
-| `--with-deps` / `--no-deps` | install (or never touch) system packages |
+| `--with-deps` / `--no-deps` | install missing GUI packages (the default) / never touch system packages |
 | `--no-desktop` / `--no-config` | skip the desktop entry / user config (on WSL also the Windows shortcuts) |
 | `--llama-server PATH` | use that `llama-server` build (no detection, no prompt) |
 | `--install-llamacpp` | clone llama.cpp and build it (installs git, cmake, a C/C++ toolchain) |
@@ -45,6 +45,10 @@ Use `bash`, not `sh` (the installer uses bash features).
 It installs `llamaherd` to `~/.local/bin`, adds a desktop entry + `llamaherd-gui` launcher
 (macOS: an `.app` bundle), and detects `llama-server` and a models folder for
 `~/.config/llamaherd/config.json`. Re-running upgrades in place and keeps your data.
+
+Missing GTK3 + WebKit2GTK (the GUI's runtime) are installed automatically through the distro
+package manager — no question, `--no-deps` skips it. Inside WSL it also creates a **LlamaHerd**
+shortcut on the Windows Desktop and Start menu, with the app icon.
 
 ### llama.cpp setup
 

@@ -47,9 +47,12 @@ llamaherd            # same binary with no arguments; CLI subcommands still work
   shortcut manually: target `C:\Program Files\WSL\wslg.exe`, arguments
   `-d <distro> -- /home/<user>/.local/bin/llamaherd-gui`.
 - Window does not open at all? Run `llamaherd-gui` in the terminal to see the error and
-  `llamaherd doctor`. The usual cause is the GTK/WebKit libraries being skipped by the
-  piped installer: `sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0` (or re-run
-  `install.sh --with-deps`).
+  `llamaherd doctor`. The installer installs the GTK/WebKit packages when they are missing
+  (skip that with `--no-deps`); if `apt` was unavailable they are:
+  `sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0`.
+- No icon on the shortcut? It uses the shipped `llamaherd.ico` copied to
+  `%USERPROFILE%\LlamaHerd\`. Re-run the installer (or let Explorer refresh) if the cache
+  still shows the old one.
 - Uninstalling removes the Windows shortcuts again.
 
 ### Window frame (WSLg)

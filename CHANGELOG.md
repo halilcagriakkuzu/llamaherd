@@ -5,6 +5,23 @@ All notable changes to LlamaHerd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-10-21
+
+### Added
+
+- **Automatic GUI libraries**: `install.sh` installs the missing GTK3 + WebKit2GTK packages
+  (runtime for release installs, `-dev` for source builds) through apt/dnf/pacman/zypper by
+  default instead of asking — and skips the step when `ldconfig`/`pkg-config` already show
+  them. `--no-deps` still opts out, and a failed package install now warns and lets the rest
+  of the installation finish instead of aborting.
+
+### Fixed
+
+- **Windows shortcut icon**: the release archive now ships `assets/llamaherd.ico` and the WSL
+  shortcut copies it to `%USERPROFILE%\LlamaHerd\icon-<hash>.ico`. The previous code tried to
+  turn the 512×512 PNG into an icon with `System.Drawing` and silently left the shortcut
+  without one when that failed.
+
 ## [0.4.3] - 2026-10-21
 
 ### Added
