@@ -16,11 +16,14 @@ an existing build). The GUI's first-run dialog and the llama.cpp tab can also se
 ## Updating from the GUI
 
 The **llama.cpp** tab shows the installed version/commit and can update and rebuild the
-checkout (Linux, macOS, WSL). It runs `scripts/update-llamacpp.sh`:
+checkout (Linux, macOS, WSL). It runs `scripts/update-llamacpp.sh` — from a source checkout,
+or the copy `install.sh` puts next to the binary (`llamaherd-update-llamacpp.sh`):
 
-1. `git pull --ff-only` (never creates a merge commit),
-2. `cmake -S . -B <build> -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=<arch>`,
-3. `cmake --build <build> --config Release -j<cores>`.
+1. `git fetch --unshallow` when the checkout is shallow (a shallow clone reports build 1,
+   because llama.cpp counts commits),
+2. `git pull --ff-only` (never creates a merge commit),
+3. `cmake -S . -B <build> -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=<arch>`,
+4. `cmake --build <build> --config Release -j<cores>`.
 
 Output streams into the log; a running server keeps its old binary until restarted. Paths
 come from `llamaDir` / `llamaBuildDir`. The script's own overrides: `LLAMA_DIR`,

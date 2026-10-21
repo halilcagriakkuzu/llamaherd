@@ -649,7 +649,20 @@ build_llamacpp() {
     die "$LLAMA_DIR is not empty and is not a git checkout (pick one with --llama-dir)"
   else
     log "Cloning $LLAMA_GIT_URL"
-    run git clone --depth 1 "$LLAMA_GIT_URL" "$LLAMA_DIR"
+    # A shallow clone breaks llama.cpp's build number (it counts commits), so
+    # keep the full history: blobless is cheap and still counts correctly.
+    if ! run git clone --filter=blob:none "$LLAMA_GIT_URL" "$LLAMA_DIR"; then
+      warn "partial clone failed; retrying with the full history"
+      run git clone "$LLAMA_GIT_URL" "$LLAMA_DIR"
+    fi
+  fi
+
+  # Older installs used --depth 1; repair those so builds report a real number.
+  if [ "$DRY_RUN" != 1 ] && [ -d "$LLAMA_DIR/.git" ] &&
+    [ "$(git -C "$LLAMA_DIR" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+    log "Fetching the full history (the llama.cpp build number counts commits)"
+    run git -C "$LLAMA_DIR" fetch --unshallow ||
+      warn "could not unshallow $LLAMA_DIR; the build number will stay low"
   fi
 
   resolve_llama_backend
@@ -913,6 +926,23 @@ EOF
     chmod 0755 "$launcher"
   fi
   manifest_add "$launcher"
+}
+
+install_update_script() {
+  local src="" c
+  for c in \
+    "$ASSET_DIR/update-llamacpp.sh" \
+    "$SOURCE_DIR/scripts/update-llamacpp.sh" \
+    "$REPO_ROOT/scripts/update-llamacpp.sh"; do
+    [ -f "$c" ] && { src="$c"; break; }
+  done
+  if [ -z "$src" ]; then
+    info "no update-llamacpp.sh found; the in-app llama.cpp update will be unavailable"
+    return 0
+  fi
+  log "Installing llama.cpp updater $BIN_DIR/$APP-update-llamacpp.sh"
+  install_file "$src" "$BIN_DIR/$APP-update-llamacpp.sh" 0755
+  manifest_add "$BIN_DIR/$APP-update-llamacpp.sh"
 }
 
 seed_data() {
@@ -1237,6 +1267,7 @@ main() {
 
   install_binary
   install_launcher
+  install_update_script
   seed_data
   ensure_llama_server
   write_config

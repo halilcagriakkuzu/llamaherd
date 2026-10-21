@@ -39,6 +39,13 @@ func checkServerVersion() Check {
 	c.Detail = desc
 	if build > 0 && build < minBuild() {
 		c.Status = StatusWarn
+		if control.IsShallowRepo(settings.LlamaDir()) {
+			c.Detail += " — shallow git clone, so the build number is not comparable"
+			c.Fix = "the checkout at " + settings.LlamaDir() + " is shallow; run\n" +
+				"  git -C " + settings.LlamaDir() + " fetch --unshallow\n" +
+				"then rebuild (llama.cpp tab → Update, or scripts/update-llamacpp.sh)"
+			return c
+		}
 		c.Detail += fmt.Sprintf(" — older than the recommended build %d", minBuild())
 		c.Fix = "update llama.cpp with scripts/update-llamacpp.sh (or set LLAMAHERD_MIN_LLAMA_BUILD)"
 		return c

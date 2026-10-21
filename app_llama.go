@@ -71,9 +71,18 @@ func (a *App) UpdateLlamaCpp() {
 	a.llama.running = true
 	a.llama.mu.Unlock()
 
-	a.Log("llama.cpp: update started (scripts/update-llamacpp.sh)")
+	a.Log("llama.cpp: update started (update-llamacpp.sh)")
 	start := time.Now()
-	cancel, done := control.RunUpdateScript("scripts/update-llamacpp.sh", a.Log)
+	script, err := control.UpdateScriptPath()
+	if err != nil {
+		a.llama.mu.Lock()
+		a.llama.running = false
+		a.llama.mu.Unlock()
+		a.Log("llama.cpp: " + err.Error())
+		a.emitState()
+		return
+	}
+	cancel, done := control.RunUpdateScript(script, settings.LlamaDir(), settings.LlamaBuildDir(), a.Log)
 	a.llama.mu.Lock()
 	a.llama.cancel = cancel
 	a.llama.mu.Unlock()

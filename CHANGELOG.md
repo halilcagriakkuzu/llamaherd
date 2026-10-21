@@ -5,6 +5,24 @@ All notable changes to LlamaHerd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-10-21
+
+### Added
+
+- **In-app llama.cpp update for installed builds**: `install.sh` now installs
+  `update-llamacpp.sh` next to the binary (`llamaherd-update-llamacpp.sh`) and the app looks
+  there when no source checkout is present, passing `LLAMA_DIR`/`BUILD_DIR` from
+  `llamaDir`/`llamaBuildDir`. The script is also shipped in the release archive.
+
+### Fixed
+
+- **Misleading "older than the recommended build" warning**: a `--depth 1` clone reports
+  llama.cpp build 1, because the build number is the commit count. The installer now clones
+  blobless with the full history (falling back to a full clone), unshallows an existing
+  shallow checkout before building, and `update-llamacpp.sh` unshallows before `git pull`.
+  `doctor` recognises a shallow checkout and asks for `git fetch --unshallow` instead of
+  claiming the build is old.
+
 ## [0.4.4] - 2026-10-21
 
 ### Added

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -218,12 +219,50 @@ func (m *Manager) ResetExternal() {
 	m.emit()
 }
 
-// RunUpdateScript runs scripts/update-llamacpp.sh, forwarding every output
-// line to logf. cancel() terminates the whole process group (cmake/ninja
-// children included).
-func RunUpdateScript(script string, logf func(string)) (cancel func(), done <-chan error) {
+// UpdateScriptPath locates the llama.cpp updater: the source checkout first,
+// then the copy installed next to the executable by scripts/install.sh.
+func UpdateScriptPath() (string, error) {
+	cands := []string{filepath.Join("scripts", "update-llamacpp.sh")}
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		cands = append(cands,
+			filepath.Join(dir, "scripts", "update-llamacpp.sh"),
+			filepath.Join(dir, "llamaherd-update-llamacpp.sh"))
+	}
+	for _, p := range cands {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			if abs, err := filepath.Abs(p); err == nil {
+				return abs, nil
+			}
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("update script not found (looked in scripts/ and next to the binary)")
+}
+
+// IsShallowRepo reports whether dir is a shallow git clone. llama.cpp derives
+// its build number from the commit count, which a shallow clone reports as 1.
+func IsShallowRepo(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	out, err := git(dir, "rev-parse", "--is-shallow-repository")
+	return err == nil && out == "true"
+}
+
+// RunUpdateScript runs the llama.cpp updater, forwarding every output line to
+// logf. dir/build are exported as LLAMA_DIR/BUILD_DIR so the script follows the
+// app's configured checkout. cancel() terminates the whole process group
+// (cmake/ninja children included).
+func RunUpdateScript(script, dir, buildDir string, logf func(string)) (cancel func(), done <-chan error) {
 	ch := make(chan error, 1)
 	cmd := exec.Command("bash", script)
+	if dir != "" {
+		cmd.Env = append(os.Environ(), "LLAMA_DIR="+dir)
+	}
+	if buildDir != "" {
+		cmd.Env = append(cmd.Env, "BUILD_DIR="+buildDir)
+	}
 	cmd.SysProcAttr = groupAttr()
 	pr, pw, _ := os.Pipe()
 	cmd.Stdout, cmd.Stderr = pw, pw

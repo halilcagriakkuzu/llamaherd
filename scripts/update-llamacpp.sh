@@ -39,6 +39,11 @@ fi
 
 before="$(git rev-parse --short HEAD)"
 step "1/3 git pull $GIT_PULL_ARGS   (at $before)"
+# A shallow clone reports a build number of 1 (llama.cpp counts commits).
+if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+    echo "shallow clone: fetching the full history so the build number is real"
+    git fetch --unshallow
+fi
 # shellcheck disable=SC2086
 git pull $GIT_PULL_ARGS
 after="$(git rev-parse --short HEAD)"

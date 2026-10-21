@@ -66,10 +66,12 @@ No llama-server found. How should the installer provide it?
 Option 2 clones `ggml-org/llama.cpp` into `~/llama.cpp` (or `--llama-dir`), installs the
 missing build tools through your package manager (apt/dnf/pacman/zypper; on macOS the Xcode
 Command Line Tools + Homebrew `cmake`), then runs the same `cmake` configure/build as
-`scripts/update-llamacpp.sh`. The resulting path is written as `serverBin`, and the checkout
-as `llamaDir` so the app's update button uses it. Non-interactive runs (CI, `-y`,
-`--dry-run`, no terminal) never prompt: they report the missing binary and leave `serverBin`
-unset; pass `--llama-server PATH` or `--install-llamacpp` to decide up front.
+`scripts/update-llamacpp.sh`. The clone keeps the full history (blobless), so llama.cpp
+reports the real build number; an existing shallow checkout is unshallowed first. The
+resulting path is written as `serverBin`, and the checkout as `llamaDir` so the app's update
+button uses it. Non-interactive runs (CI, `-y`, `--dry-run`, no terminal) never prompt: they
+report the missing binary and leave `serverBin` unset; pass `--llama-server PATH` or
+`--install-llamacpp` to decide up front.
 
 With `--llama-backend auto` the build uses CUDA when an NVIDIA GPU is present **and a CUDA
 toolkit is usable**; a driver alone (`nvidia-smi`) is not enough. If `nvcc` is missing the
