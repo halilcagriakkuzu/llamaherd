@@ -10,10 +10,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"llamaherd/hf"
 	"llamaherd/schema"
+	"llamaherd/settings"
 )
 
 // provenanceFrom is the library record of a successful model API lookup.
@@ -71,8 +70,7 @@ func (a *App) OpenRepoPage(ref string) error {
 	if a.ctx == nil {
 		return fmt.Errorf("opening links is only available in the GUI")
 	}
-	runtime.BrowserOpenURL(a.ctx, hf.RepoURL(repo))
-	return nil
+	return settings.OpenExternalURL(hf.RepoURL(repo))
 }
 
 // OpenModelSource opens the model's source repository page in the browser.
@@ -93,6 +91,5 @@ func (a *App) OpenModelSource(ref string) error {
 	if a.ctx == nil {
 		return fmt.Errorf("opening links is only available in the GUI")
 	}
-	runtime.BrowserOpenURL(a.ctx, p.URL)
-	return nil
+	return settings.OpenExternalURL(p.URL)
 }

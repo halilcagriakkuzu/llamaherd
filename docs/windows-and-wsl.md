@@ -25,6 +25,25 @@
   `\\wsl.localhost\Ubuntu\home\me\models`. `llamaherd doctor` warns about the slow case.
 - `llama-server` must listen on `127.0.0.1`; WSL2 localhost forwarding exposes it to Windows.
 
+### Window frame (WSLg)
+
+In WSL the window frame is drawn by WSLg's Windows-side compositor, not by the app. Since
+0.4.0 LlamaHerd drops that frame by default and draws its own title bar in the app header
+(minimise / maximise / close, drag anywhere on the header, double-click to maximise,
+resize from all eight edges).
+
+- `LLAMAHERD_FRAMELESS=0` brings the native frame back (also `"frameless": false` in the
+  config file); `LLAMAHERD_FRAMELESS=1` forces the app-drawn title bar on other platforms.
+- The window size and position are stored in `<data dir>/window.json`. A position that no
+  longer matches a connected screen is discarded on the next launch. WSLg places windows
+  itself and ignores move requests, so inside WSL only the size is restored.
+- If dragging or edge-resizing does not work under your WSLg build, use the switch above;
+  scenario **C** (Windows app + WSL server) also gives a fully native window.
+- The Windows/desktop shortcut runs `scripts/launch-gui.sh`, which rebuilds
+  `build/bin/llamaherd` when a source file is newer (or when called with `--rebuild`), so
+  the shortcut always shows the current build. Startup logs the resolved frame:
+  `window: frameless (app-drawn title bar)` or `window: native frame` (Config → Logs).
+
 ## Known limitations
 
 - **WSL IP** is shown only inside WSL; `llama-server` binds `127.0.0.1` by default, so

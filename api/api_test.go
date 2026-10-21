@@ -272,6 +272,24 @@ func TestBearerTokenAuth(t *testing.T) {
 	}
 }
 
+func TestPingBeaconNeedsNoToken(t *testing.T) {
+	isolate(t)
+	t.Setenv(settings.EnvAPIToken, "s3cret")
+	h := Handler(&fake{})
+	code, body := do(t, h, "GET", "/ping", "", nil)
+	if code != 200 || !strings.Contains(body, `"app":"llamaherd"`) {
+		t.Fatalf("GET /ping = %d %s, want the identity beacon", code, body)
+	}
+	// The loopback Host guard still applies to the unauthenticated beacon.
+	req := httptest.NewRequest("GET", "/ping", nil)
+	req.Host = "evil.example"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("non-loopback host = %d, want 403", rec.Code)
+	}
+}
+
 func TestLoopbackGuards(t *testing.T) {
 	isolate(t)
 	h := Handler(&fake{})

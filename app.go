@@ -78,6 +78,9 @@ type Snapshot struct {
 	RunFingerprint    string `json:"runFingerprint"`
 	// RecentLog is the server's own output tail (crash / not-responding hints).
 	RecentLog []string `json:"recentLog"`
+	// Frameless is true when the window has no native frame, so the frontend
+	// draws the minimise/maximise/close controls itself.
+	Frameless bool `json:"frameless"`
 }
 
 // App is the Wails-bound application. Start/stop control the real llama-server
@@ -280,6 +283,7 @@ func (a *App) startup(ctx context.Context) {
 		func(line string) { a.Log(line) },
 	)
 	a.initBackend()
+	a.logWindowMode()
 	a.initModels()
 	a.initPresets()
 	a.initCatalog()
@@ -330,6 +334,7 @@ func (a *App) startup(ctx context.Context) {
 	a.stateMu.Lock()
 	a.ready = true
 	a.stateMu.Unlock()
+	a.restoreWindowBounds()
 	a.emitState()
 }
 
@@ -843,6 +848,7 @@ func (a *App) snapshotLocked() Snapshot {
 		ConfigFingerprint: store.ConfigFingerprint(a.cfg),
 		RunFingerprint:    runFingerprint,
 		RecentLog:         append([]string(nil), info.RecentLog...),
+		Frameless:         settings.Frameless(),
 	}
 	s.LlamaUpdating, _ = a.llamaState()
 	s.FirstRun = a.firstRun

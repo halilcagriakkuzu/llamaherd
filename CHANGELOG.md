@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **App-drawn title bar on WSL**: the main window is frameless by default inside WSL, where
+  the native frame is WSLg's Windows-side chrome around a Linux window. The app header is
+  now the title bar (drag to move, double-click to maximise) with minimise / maximise /
+  close buttons; Wails' edge detection keeps all eight resize zones working. The window's
+  size and position are remembered in `<data dir>/window.json` and clamped to the available
+  screens on restore (size only under WSLg, which owns window placement).
+  `LLAMAHERD_FRAMELESS=0` (or `"frameless": false` in the config file) restores the native
+  frame; `=1` forces the custom one on other platforms.
+- **`GET /ping` identity beacon**: the control API answers a tiny unauthenticated
+  `{"app":"llamaherd"}` on loopback (the `Host` guard still applies), so local tools can
+  tell LlamaHerd from an unrelated listener.
 - **Remembered selection**: the model/preset you last selected or started is stored in
   `<data dir>/last-run.json` and restored (selected, with its config applied) on the next
   launch. Deleting/renaming the model falls back to the normal first-model selection; the
@@ -121,6 +132,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Frameless window resize was hard to grab**: the Wails hit zone was 6 px and its
+  right/bottom detection compares `window.outerWidth` with CSS-pixel mouse coordinates —
+  WSLg reports the outer size in physical pixels, so those edges almost never triggered.
+  The app now widens the zone to 10 px and reports the viewport size as the outer size in a
+  frameless window; resize zones are also disabled while maximised (where they only showed
+  a cursor and did nothing).
+- **Doctor false positive on the control-API port**: the port check inspected only the
+  first 4 KiB of `/status` and looked for `presetNames`, which follows the model list in
+  the snapshot — on any real install it sat beyond the read window, so LlamaHerd reported
+  its own API as "in use by another process". It now probes `GET /ping` first, falls back
+  to a full `/status` read for older builds, and bypasses configured proxies.
+- **llama.cpp view layout**: the card is now the single scroll container (no more rows cut
+  off at the card edge or nested scrollbars) and uses two columns on wide windows, so the
+  whole tab fits a normal window height and only scrolls inside the card when it doesn't.
+- **Logs only on Config**: the log panel is hidden on the Performance and llama.cpp views.
+- **"Open chat" under WSL**: `runtime.BrowserOpenURL` ends in `xdg-open`, which usually has
+  no browser registered inside WSL and fails silently. Links now go through
+  `settings.OpenExternalURL`, which prefers the Windows host (`wslview`, PowerShell,
+  `cmd.exe`) before `xdg-open`, and reports a real error to the UI toast.
 - `POST /config/update` now really merges a partial config (as documented) instead of
   replacing the preset and dropping omitted fields.
 - Case-only path differences (Windows/macOS) no longer break model lookups, config
@@ -143,6 +173,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Headless UI smoke test (`scripts/uishot/smoke.sh`) asserts the running model list,
   benchmark table, import/mmproj dialog and the not-responding banner; it runs in CI.
 - Added a snapshot JSON contract test so frontend keys cannot be renamed silently.
+- `scripts/launch-gui.sh` (what the Windows/desktop shortcuts call) now rebuilds
+  `build/bin/llamaherd` when a Go source, `go.mod`/`go.sum` or an embedded frontend file
+  is newer, and takes `--rebuild` to force it. Previously it only built a missing binary,
+  so a shortcut kept launching a stale window after UI or startup changes.
 
 ### Changed
 

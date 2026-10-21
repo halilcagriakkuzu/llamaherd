@@ -22,6 +22,7 @@ Written by the first-run dialog; editable by hand.
   "apiPort": "8517",
   "apiToken": "",
   "logFile": "",
+  "frameless": true,
   "notifications": {
     "enabled": true,
     "serverReady": true,
@@ -34,6 +35,13 @@ Written by the first-run dialog; editable by hand.
 
 `logFile` is the rotating app/server log (5 MiB per file, 3 backups). Set it to `"off"` to
 disable writing logs to disk; the in-memory log view and `GET /logs` keep working.
+
+`frameless` drops the native title bar and draws the window controls in the app header.
+It defaults to `true` inside WSL (where the frame is WSLg's Windows-side chrome) and
+`false` elsewhere; `LLAMAHERD_FRAMELESS=0`/`1` overrides it either way. The window's
+size and position are remembered in `<data dir>/window.json`; a position that no longer
+matches a connected screen is discarded and the window is centred again. WSLg always
+places windows itself (moves are not honoured), so inside WSL only the size is restored.
 
 `notifications` selects the host OS notifications (server ready, crash/not responding,
 download finished/failed, benchmark finished). Missing fields default to `true`; set
@@ -60,6 +68,7 @@ override it with `LLAMAHERD_API_TOKEN`.
 | `LLAMAHERD_DATA_DIR`, `LLAMAHERD_CONFIGS_DIR`, `LLAMAHERD_LIBRARY_DIR` | where `configs/` and `library/` live |
 | `LLAMAHERD_BENCH_DIR` | where stored benchmark results live (default `<data dir>/benchmarks`) |
 | `LLAMAHERD_LOG_FILE` | rotating log path (default `<data dir>/logs/llamaherd.log`; `off` disables it) |
+| `LLAMAHERD_FRAMELESS` | `1`/`0` forces the app-drawn title bar on/off (default: on in WSL, off elsewhere) |
 | `LLAMAHERD_MIN_LLAMA_BUILD` | minimum llama.cpp build that `doctor` accepts |
 | `LLAMAHERD_CATALOG_URL` | model-catalog source (default: `hf/catalog.json` on the repo's `main` branch; `off` disables the network refresh) |
 | `HF_TOKEN`, `HUGGING_FACE_HUB_TOKEN`, `HF_ENDPOINT` | Hugging Face token / mirror |

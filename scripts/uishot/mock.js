@@ -70,6 +70,7 @@
       ? ["load_tensors: loading model tensors, this can take a while...", "llama_model_load: error loading model: unknown tensor", "failed to load model from file"]
       : [],
     llamaUpdating: false, firstRun: params.get("firstrun") === "1",
+    frameless: params.get("frameless") !== "0",
     serverBin: "/home/me/llama.cpp/build/bin/llama-server", modelsDir: "/home/me/LlamaHerd/models", userConfigPath: "/home/me/.config/llamaherd/config.json",
     doctor: { ok: true, summary: "1 warning", checks: [
       { id: "server-bin", title: "llama-server binary", status: "ok", detail: "/home/me/llama.cpp/build/bin/llama-server" },
@@ -124,7 +125,18 @@
       : { path: p, size: 5680000000, duplicate: false })),
     ImportModels: (paths) => Promise.resolve({ items: paths.map((p) => ({ source: p, status: "imported", alias: "x" })) }),
   }, { get: (t, k) => (k in t ? t[k] : noop) }) } };
-  window.runtime = { EventsOn: () => {}, OnFileDrop: (cb) => { window.__mockFileDrop = cb; } };
+  // Mirrors the Wails v2 runtime surface the frameless code touches.
+  window.wails = { flags: { enableResize: params.get("frameless") !== "0", borderThickness: 6 } };
+  window.runtime = {
+    EventsOn: () => {},
+    OnFileDrop: (cb) => { window.__mockFileDrop = cb; },
+    WindowMinimise: () => {},
+    WindowToggleMaximise: () => {},
+    WindowIsMaximised: () => Promise.resolve(false),
+    WindowGetSize: () => Promise.resolve([1240, 820]),
+    WindowGetPosition: () => Promise.resolve([0, 0]),
+    Quit: () => {},
+  };
   setTimeout(() => {
     const log = document.getElementById("logView");
     if (!log) return;
@@ -182,6 +194,10 @@
       ok("loading status bar", text("statusInfo").includes("loading"));
       ok("validation hidden while loading", byId("validation").hidden);
       ok("no model rows while loading", document.querySelectorAll("#modelList li:not(.folder)").length === 0);
+    } else if (mode === "native") {
+      ok("native frame class", !document.body.classList.contains("frameless"));
+      ok("window controls hidden", byId("winControls") && getComputedStyle(byId("winControls")).display === "none");
+      ok("running status", text("statusWord").includes("RUNNING"));
     } else {
       ok("running status", text("statusWord").includes("RUNNING"));
       ok("model rows", document.querySelectorAll("#modelList li:not(.folder)").length > 0);
@@ -205,6 +221,10 @@
       byId("moreBtn").click();
       ok("more menu closes", byId("moreMenu").hidden);
       ok("notification center button", !!byId("notifBtn"));
+      ok("frameless window class", document.body.classList.contains("frameless"));
+      ok("window controls", byId("winControls") && getComputedStyle(byId("winControls")).display !== "none");
+      ok("resize hit zone widened", window.wails && window.wails.flags.borderThickness === 10);
+      ok("outer size reports the viewport", window.outerWidth === window.innerWidth);
       ok("top view tabs", !!byId("viewConfigBtn") && !!byId("viewPerfBtn") && !!byId("viewLlamaBtn"));
       byId("viewPerfBtn").click();
       ok("performance screen", byId("main").dataset.view === "performance");
@@ -263,7 +283,7 @@
       : "SELFTEST PASS (" + checks.length + " checks)";
     document.body.appendChild(box);
     };
-    if (mode === "failed" || mode === "loading") { finish(); return; }
+    if (mode === "failed" || mode === "loading" || mode === "native") { finish(); return; }
     setTimeout(() => {
       ok("duplicate preview", document.querySelectorAll("#importList .import-duplicate").length === 1 &&
         document.querySelectorAll("#importList .import-new").length === 1);

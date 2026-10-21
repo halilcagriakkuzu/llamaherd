@@ -60,6 +60,8 @@ const (
 	EnvBenchDir = "LLAMAHERD_BENCH_DIR"
 	// EnvLogFile overrides the rotating log path; "off" disables the file.
 	EnvLogFile = "LLAMAHERD_LOG_FILE"
+	// EnvFrameless forces the main window's frame on ("1") or off ("0").
+	EnvFrameless = "LLAMAHERD_FRAMELESS"
 
 	// DefaultBuildDir is used when the build directory cannot be derived.
 	DefaultBuildDir = "build-latest"
@@ -84,6 +86,10 @@ type File struct {
 	// LogFile overrides the rotating log path (default <data>/logs/llamaherd.log);
 	// the literal "off" disables writing logs to disk.
 	LogFile string `json:"logFile,omitempty"`
+	// Frameless draws the app's own title bar instead of the native one; nil
+	// follows the platform default (on in WSL, where the frame belongs to
+	// WSLg's compositor).
+	Frameless *bool `json:"frameless,omitempty"`
 	// Notifications toggles host OS notifications; nil means "all defaults on".
 	Notifications *Notifications `json:"notifications,omitempty"`
 }

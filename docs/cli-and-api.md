@@ -60,6 +60,7 @@ llamaherd version
 | Method & path | Body / query | Purpose |
 | --- | --- | --- |
 | `GET /status` | — | full UI snapshot |
+| `GET /ping` | — | identity beacon: `{"app":"llamaherd"}`, no token required |
 | `GET /models`, `/presets?alias=`, `/download`, `/doctor` | — | read state |
 | `GET /logs?tail=n` (or `?after=seq`) | — | recent app/server log lines; `after` streams new ones |
 | `GET /catalog[?all=1]` | — | model picks for this machine (`all=1`: every catalog entry) |

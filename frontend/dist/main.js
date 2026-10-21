@@ -2390,10 +2390,91 @@
     });
   }
 
+  // ---- frameless window: in-app title bar controls ----
+
+  let syncMaximised = () => {};
+
+  // Wails' frameless resize ships a 6 px hit zone and measures it with
+  // window.outerWidth/outerHeight. WSLg/WebKitGTK can report those in physical
+  // pixels while the mouse coordinates are CSS pixels, which makes the right
+  // and bottom edges almost impossible to grab. In a frameless window the
+  // viewport is the window, so widening the zone and reporting the viewport
+  // size fixes both edges.
+  let resizeTuned = false;
+  function tuneWindowResize() {
+    const w = window.wails;
+    if (resizeTuned || !w || !w.flags) return;
+    if (!document.body.classList.contains("frameless")) return;
+    resizeTuned = true;
+    w.flags.borderThickness = 10;
+    try {
+      Object.defineProperty(window, "outerWidth", { configurable: true, get: () => window.innerWidth });
+      Object.defineProperty(window, "outerHeight", { configurable: true, get: () => window.innerHeight });
+    } catch (err) {
+      // Older runtime without a shadowable outerWidth: keep the wider zone only.
+    }
+  }
+
+  function wireWindowControls() {
+    const rt = runtime();
+    const bar = $("appBar");
+    const minBtn = $("winMin");
+    const maxBtn = $("winMax");
+    const closeBtn = $("winClose");
+    if (!rt || !bar) return;
+    tuneWindowResize();
+
+    let resizeTimer = 0;
+    const syncMax = () => {
+      if (typeof rt.WindowIsMaximised !== "function") return;
+      Promise.resolve(rt.WindowIsMaximised())
+        .then((on) => {
+          document.body.classList.toggle("maximised", !!on);
+          // A maximised window has no resizable edges; leaving the zones active
+          // shows resize cursors that do nothing.
+          if (window.wails && window.wails.flags && document.body.classList.contains("frameless")) {
+            window.wails.flags.enableResize = !on;
+          }
+          if (!maxBtn) return;
+          const label = on ? "Restore" : "Maximise";
+          maxBtn.title = label;
+          maxBtn.setAttribute("aria-label", label);
+        })
+        .catch(() => {});
+    };
+    syncMaximised = syncMax;
+
+    if (minBtn) minBtn.addEventListener("click", () => rt.WindowMinimise());
+    if (maxBtn) {
+      maxBtn.addEventListener("click", () => {
+        rt.WindowToggleMaximise();
+        setTimeout(syncMax, 120);
+      });
+    }
+    if (closeBtn) closeBtn.addEventListener("click", () => rt.Quit());
+    bar.addEventListener("dblclick", (e) => {
+      // Not on buttons/menus, and only when the app owns the title bar.
+      if (!document.body.classList.contains("frameless")) return;
+      if (e.target.closest("button, input, select, a, label")) return;
+      rt.WindowToggleMaximise();
+      setTimeout(syncMax, 120);
+    });
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(syncMax, 150);
+    });
+  }
+
   // ---- boot ----
 
   function onState(next) {
     snap = next;
+    const frameless = !!next.frameless;
+    if (frameless !== document.body.classList.contains("frameless")) {
+      document.body.classList.toggle("frameless", frameless);
+      if (frameless) syncMaximised();
+    }
+    if (frameless) tuneWindowResize();
     render();
     if (llamaActive() && llamaWasUpdating !== !!snap.llamaUpdating) refreshLlama();
     llamaWasUpdating = !!snap.llamaUpdating;
@@ -2408,6 +2489,7 @@
     wireForm();
     wireLogs();
     wireShortcuts();
+    wireWindowControls();
     initLogsCollapse();
     initTheme();
     initNotifications();
@@ -2555,8 +2637,7 @@
     Promise.resolve(app().GetState())
       .then((first) => {
         if (!first || snap) return;
-        snap = first;
-        render();
+        onState(first);
       })
       .catch((err) =>
         appendLog(`error: ${err && err.message ? err.message : err}`)

@@ -78,16 +78,56 @@ func TestAPIPortBusy(t *testing.T) {
 
 func TestAPIPortOursWithToken(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer secret" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
+		switch r.URL.Path {
+		case "/ping":
+			_, _ = w.Write([]byte(`{"app":"llamaherd"}`))
+		case "/status":
+			if r.Header.Get("Authorization") != "Bearer secret" {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte(`{"status":"running","presetNames":["default"]}`))
+		default:
+			http.NotFound(w, r)
 		}
-		_, _ = w.Write([]byte(`{"status":"running","presetNames":["default"]}`))
 	}))
 	defer srv.Close()
 	t.Setenv("LLAMAHERD_API_TOKEN", "secret")
 	addr := strings.TrimPrefix(srv.URL, "http://")
-	if !ours(addr) {
+	if owner(addr) != apiOurs {
 		t.Fatal("our own authenticated control API must be recognised")
+	}
+}
+
+// Regression: the snapshot leads with the model list, so on a real install the
+// "presetNames" marker sits far beyond the first few kilobytes. Builds that
+// predate /ping were wrongly reported as "another process".
+func TestAPIPortOursLegacyLargeStatus(t *testing.T) {
+	filler := strings.Repeat("x", 64<<10)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/status" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"models":["` + filler + `"],"presetNames":["default"]}`))
+	}))
+	defer srv.Close()
+	t.Setenv("LLAMAHERD_API_TOKEN", "")
+	addr := strings.TrimPrefix(srv.URL, "http://")
+	if owner(addr) != apiOurs {
+		t.Fatal("a large legacy /status snapshot must still be recognised")
+	}
+}
+
+// A listener that answers HTTP but is not ours must stay FAIL.
+func TestAPIPortForeignHTTPServer(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"hello":"world"}`))
+	}))
+	defer srv.Close()
+	t.Setenv("LLAMAHERD_API_TOKEN", "")
+	addr := strings.TrimPrefix(srv.URL, "http://")
+	if owner(addr) != apiUnknown {
+		t.Fatal("an unrelated HTTP server must not be recognised as ours")
 	}
 }

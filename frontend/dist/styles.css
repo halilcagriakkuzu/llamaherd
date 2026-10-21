@@ -115,6 +115,38 @@ input, select, button { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--border);
 }
 
+/* ---- frameless window: the app bar doubles as the title bar ---- */
+/* The custom property is read by the Wails runtime on mousedown; it inherits,
+   so interactive children opt out again. */
+body.frameless #appBar { --wails-draggable: drag; }
+#appBar button,
+#appBar input,
+#appBar select,
+#appBar a,
+#appBar label,
+#appBar .no-drag { --wails-draggable: no-drag; }
+
+.win-controls { display: none; align-items: center; gap: 2px; margin-left: 6px; }
+body.frameless .win-controls { display: flex; }
+.win-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: default;
+}
+.win-btn:hover { background: var(--surface-2); color: var(--text); }
+.win-btn:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: -2px; }
+.win-close:hover { background: #d93a3a; color: #fff; }
+.win-btn .ico-restore { display: none; }
+body.maximised .win-btn .ico-restore { display: block; }
+body.maximised .win-btn .ico-max { display: none; }
+
 .brand { display: flex; align-items: center; gap: 11px; margin-right: 8px; }
 .brand-logo { border-radius: 9px; display: block; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18); }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
@@ -232,6 +264,34 @@ main[data-view="llama"] #configGroup,
 main[data-view="llama"] #metricsGroup,
 main[data-view="llama"] #benchGroup { display: none; }
 main[data-view="llama"] #viewLlama { display: block; }
+
+/* Each view owns exactly one scroll container. The llama.cpp card used to be a
+   zero-min-height flex item whose content spilled out of it, so rows were cut
+   off at the card edge and a second scrollbar appeared. */
+main[data-view="llama"] #right { overflow: hidden; }
+main[data-view="llama"] #viewLlama {
+  overflow-y: auto;
+  padding: 12px 14px 18px;
+  scrollbar-gutter: stable;
+}
+#viewLlama > .panel { flex: none; overflow: visible; padding: 0; }
+
+/* Environment on the left, processes / notifications / paths on the right:
+   the whole tab fits a 820 px window without scrolling on a normal display. */
+.llama-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 26px;
+}
+.llama-col { min-width: 0; }
+@media (max-width: 1100px) {
+  .llama-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Logs belong to Config; the other views must not repeat them. */
+main[data-view="llama"] #logsGroup,
+main[data-view="performance"] #logsGroup { display: none; }
 
 
 .stretch { flex: 1; min-height: 0; }

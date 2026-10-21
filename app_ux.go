@@ -173,8 +173,7 @@ func (a *App) OpenChat() error {
 	if a.ctx == nil {
 		return fmt.Errorf("chat is only available in the GUI")
 	}
-	runtime.BrowserOpenURL(a.ctx, a.ChatURL())
-	return nil
+	return settings.OpenExternalURL(a.ChatURL())
 }
 
 // PickServerBinary opens a native file picker for llama-server.

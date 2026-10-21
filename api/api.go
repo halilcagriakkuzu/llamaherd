@@ -493,7 +493,20 @@ func Handler(c Control) http.Handler {
 		_, _ = w.Write([]byte(b))
 	})
 
-	return withAuth(mux)
+	// Identity beacon: GET /ping needs no token so local tools (and the
+	// doctor's port check) can tell LlamaHerd's API from an unrelated
+	// listener. It exposes the app name and nothing else, and the loopback
+	// Host check still applies.
+	root := http.NewServeMux()
+	root.HandleFunc("GET /ping", func(w http.ResponseWriter, r *http.Request) {
+		if !loopbackHost(r.Host) {
+			http.Error(w, "forbidden: non-loopback host", http.StatusForbidden)
+			return
+		}
+		writeJSON(w, map[string]any{"app": "llamaherd"})
+	})
+	root.Handle("/", withAuth(mux))
+	return root
 }
 
 // withAuth enforces the loopback security model: requests must address a

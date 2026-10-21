@@ -43,6 +43,7 @@ docs and a `CHANGELOG.md` entry.
 | T15 | Non-NVIDIA GPU support | M | — |
 | T16 | Benchmark `/metrics` counters | M | — |
 | T17 | Benchmark export (CSV/JSON) | S | — |
+| T18 | WSLg window frame: custom title bar and resize | S–M | decision (A–E) |
 
 S ≈ half a day, M ≈ 1–3 days. The estimates include tests and docs.
 
@@ -504,6 +505,97 @@ prompt-eval, slots and queue depth via `/metrics`.
 
 **Likely files:** `app_bench.go`, `api/api.go`, `cli.go`, `store/bench.go`,
 frontend bench section, docs, tests.
+
+---
+
+## T18 — WSLg window frame: custom title bar and resize
+
+**Status:** ✅ implemented (2026-10-21, option **B**). The WSLg-specific spike below still
+needs one manual run on a Windows host; `LLAMAHERD_FRAMELESS=0` is the escape hatch, and
+option **C** remains the fallback if RAIL refuses client-side dragging.
+
+**Why:** on WSL the window is drawn by WSLg's RDP/RAIL compositor. The title bar,
+minimise/maximise/close and edge resize are therefore Windows-side chrome wrapped
+around a Linux GTK window, which looks out of place next to the app's own header
+and behaves differently from a native app (snap layouts, resize cursors, corner
+grabbing). The header already looks like a title bar, so the native frame is
+duplicated work.
+
+**Scope (option B)**
+- `main.go`: `options.App{Frameless: true, CSSDragProperty: "--wails-draggable"}`;
+  keep `DisableResize: false` — Wails v2.16 injects edge detection and calls
+  `gtk_window_begin_resize_drag`, so the eight resize zones work without custom
+  JS (`internal/frontend/runtime/desktop/main.js` in the Wails module).
+- Header becomes the drag region (`--wails-draggable: drag` on the container,
+  `--wails-draggable: no-drag` on every button/input inside it); double-click on
+  it toggles maximise.
+- Window controls appended to the header: minimise, maximise/restore (icon
+  reflects the state via `WindowIsMaximised`), close. Bindings:
+  `runtime.WindowMinimise`, `runtime.WindowToggleMaximise`, `runtime.WindowClose`;
+  listen for `events.Common.WindowMaximise` / `WindowUnMaximise` to swap the icon.
+- Restore the window's size/position at startup (`WindowSetSize` /
+  `WindowSetPosition`, stored in the user config or `<data dir>/window.json`) and
+  clamp it to the current screen, since a frameless window has no WM to do it.
+- Keep a documented escape hatch: `LLAMAHERD_FRAMELESS=0` (or a `frameless`
+  config key) falls back to the native decorated window — useful on Linux
+  desktops where a tiling WM or GTK theme misbehaves.
+- Rounded corners / shadow: frameless GTK windows get none from the WM; draw
+  them in CSS (`border-radius` + a 1 px border) and accept that the shadow is
+  lost, or keep the window square-cornered under WSLg.
+- Screenshot harness (`scripts/uishot`) must stay usable: the controls render in
+  the mocked header, so add a `frameless=1` query flag to the mock.
+
+**Acceptance**
+- No native/gray WSLg title bar; the app header drags the window.
+- Close / minimise / maximise / restore work from the header; the icon matches
+  the state; double-click maximises.
+- All eight edges/corners resize with the correct cursor on Linux (WSLg),
+  Windows and macOS builds.
+- Window size/position survive a restart; a stale off-screen position is clamped.
+  (WSLg ignores move requests, so only the size is restored there — noted in the docs.)
+- `LLAMAHERD_FRAMELESS=0` restores the native frame without a rebuild.
+- `scripts/uishot` renders both modes; screenshots refreshed.
+
+**Risks**
+- WSLg RAIL may not honour `begin_resize_drag` from the client; verify before
+  committing to B (see the spike below). If it does not, B degrades to "no edge
+  resize", which is why C exists.
+- Frameless loses WM snapping (Aero snap) on some compositors; on Windows it is
+  retained because the resize/snap path is the Win32 one.
+
+### Alternatives (decide before starting)
+
+| # | Option | Looks | Resize / snap | Effort | Risk |
+| --- | --- | --- | --- | --- | --- |
+| A | Keep the native frame (status quo) | WSLg/OS chrome | native, free | 0 | none |
+| B | Frameless + in-app title bar (Wails support) | app-styled, consistent | JS edge zones + `begin_resize_drag`; no snap under some WMs | S–M | medium (WSLg RAIL) |
+| C | Run the **Windows** build natively, drive `llama-server` in WSL via `serverBin = wsl:<distro>:/path` | real Windows window, best chrome | native Windows (snap, corners, multi-monitor) | S (packaging/docs only) | low; changes how the app is launched |
+| D | `gtk_window_set_titlebar` with a custom GTK header bar (no `Frameless`) | closer to a native GNOME app, keeps WM resize | native | M | the HTML header would be duplicated; Wails does not expose the GTK window cleanly |
+| E | Native menu-bar / CSD via a Linux desktop file hint | depends on the desktop | native | S | only helps outside WSLg; WSLg ignores it |
+
+Notes per option:
+- **A** stays the default until B is verified. Nothing to implement.
+- **B** is the only option that gives the "beautiful, app-owned" chrome the
+  request asks for while keeping the existing HTML header. It is what the scope
+  above describes.
+- **C** is the pragmatic answer for WSL users: build `llamaherd.exe` and use the
+  existing `wsl:` binary form (`docs/windows-and-wsl.md`). Windows draws the
+  frame, so nothing about the window is custom — but then the frame looks like
+  Windows, which may be exactly what is wanted.
+- **D** avoids frameless edge cases but Wails v2 has no API for a custom GTK
+  title bar; it would need a fork or a CGO shim.
+- **E** is a dead end under WSLg (the compositor, not the desktop, draws the
+  chrome).
+
+**Spike (half a day, before choosing):** build a throwaway `Frameless: true`
+window on the target WSLg box and check (1) the RAIL frame disappears, (2) edge
+resize fires, (3) maximise/restore round-trips, (4) the window still receives
+drag events. Record the result here. If (2) fails, choose **C**.
+
+**Likely files:** `main.go`, `app_ux.go`, `frontend/dist/index.html` (header),
+`frontend/dist/main.js` (window controls), `frontend/dist/styles.css`,
+`settings/` (frameless + window bounds), `scripts/uishot/mock.js`,
+`docs/windows-and-wsl.md`, `README.md` screenshots.
 
 ---
 

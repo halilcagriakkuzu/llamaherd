@@ -8,6 +8,8 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+
+	"llamaherd/settings"
 )
 
 //go:embed all:frontend/dist
@@ -27,10 +29,15 @@ func main() {
 		MinWidth:         960,
 		MinHeight:        640,
 		DisableResize:    false,
+		Frameless:        settings.Frameless(),
+		CSSDragProperty:  "--wails-draggable",
+		CSSDragValue:     "drag",
 		DragAndDrop:      &options.DragAndDrop{EnableFileDrop: true},
 		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 250, G: 250, B: 252, A: 1},
 		OnStartup:        app.startup,
+		OnDomReady:       app.restoreWindowPlacement,
+		OnBeforeClose:    app.beforeClose,
 		Bind: []interface{}{
 			app,
 		},

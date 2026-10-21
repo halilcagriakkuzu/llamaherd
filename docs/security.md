@@ -25,6 +25,9 @@ Requests are checked before they reach a handler:
   `"apiToken": "off"` to disable authentication explicitly. The `?token=`
   query form still works for compatibility but headers are preferred because
   query strings leak into shell history and logs.
+- **One public beacon.** `GET /ping` answers without the token so local tools can
+  recognise LlamaHerd's API. It returns only `{"app":"llamaherd"}`, is subject to
+  the same loopback `Host` check, and exposes no state or configuration.
 
 ### What the API can do
 
