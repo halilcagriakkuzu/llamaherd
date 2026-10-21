@@ -351,6 +351,9 @@ func mergeConfig(base, patch schema.Config) schema.Config {
 	if patch.Advanced.Perf {
 		out.Advanced.Perf = true
 	}
+	if patch.Advanced.Metrics {
+		out.Advanced.Metrics = true
+	}
 	if patch.Advanced.SleepIdle != 0 {
 		out.Advanced.SleepIdle = patch.Advanced.SleepIdle
 	}

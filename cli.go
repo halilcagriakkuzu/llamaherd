@@ -322,7 +322,7 @@ func ctlRequest(args []string) ([]byte, int, error) {
 					return data, status, nil
 				}
 				if err := os.WriteFile(out, data, 0o644); err != nil {
-					return []byte(err.Error()), 1, nil
+					return []byte(err.Error()), 400, nil
 				}
 				return []byte("wrote " + out), 0, nil
 			case "list":
