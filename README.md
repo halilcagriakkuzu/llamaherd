@@ -54,7 +54,9 @@ curl -fsSL https://raw.githubusercontent.com/halilcagriakkuzu/llamaherd/main/scr
 ```
 
 Windows, building from source and all options: [docs/installation.md](docs/installation.md).
-You also need a `llama-server` build and a GGUF model — see the [quickstart](QUICKSTART.md).
+No `llama-server` yet? The installer offers to clone and build llama.cpp from source (or you
+can point it at an existing build); a GGUF model is still needed — see the
+[quickstart](QUICKSTART.md).
 
 ## Use
 

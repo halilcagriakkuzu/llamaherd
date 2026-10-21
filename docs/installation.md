@@ -34,12 +34,38 @@ Use `bash`, not `sh` (the installer uses bash features).
 | `--prefix DIR`, `--bin-dir DIR`, `--data-dir DIR` | install locations (default prefix `~/.local`) |
 | `--with-deps` / `--no-deps` | install (or never touch) system packages |
 | `--no-desktop` / `--no-config` | skip the desktop entry / user config |
-| `--dry-run`, `-y` | preview / assume yes |
+| `--llama-server PATH` | use that `llama-server` build (no detection, no prompt) |
+| `--install-llamacpp` | clone llama.cpp and build it (installs git, cmake, a C/C++ toolchain) |
+| `--llama-dir DIR`, `--llama-build-dir DIR` | checkout / build dir (default `~/llama.cpp`, `build-latest`) |
+| `--llama-backend auto\|cuda\|vulkan\|metal\|cpu` | GPU backend for that build (default: CUDA when `nvidia-smi` works, else CPU) |
+| `--no-llamacpp` | never ask about llama.cpp; leave `serverBin` unset |
+| `--dry-run`, `-y` | preview / assume yes (also skips the llama.cpp prompt) |
 | `--uninstall [--purge]` | remove the app (`--purge` also removes data + config) |
 
 It installs `llamaherd` to `~/.local/bin`, adds a desktop entry + `llamaherd-gui` launcher
 (macOS: an `.app` bundle), and detects `llama-server` and a models folder for
 `~/.config/llamaherd/config.json`. Re-running upgrades in place and keeps your data.
+
+### llama.cpp setup
+
+llama.cpp is not bundled. When no `llama-server` is found and no config exists yet, the
+installer asks (on the controlling terminal, so it also works with the `curl … | bash`
+one-liner):
+
+```
+No llama-server found. How should the installer provide it?
+  1) I already have a build — ask me for the path  [default]
+  2) Clone llama.cpp and build it from source (installs git, cmake and a C/C++ toolchain)
+  3) Skip for now — configure it on first launch
+```
+
+Option 2 clones `ggml-org/llama.cpp` into `~/llama.cpp` (or `--llama-dir`), installs the
+missing build tools through your package manager (apt/dnf/pacman/zypper; on macOS the Xcode
+Command Line Tools + Homebrew `cmake`), then runs the same `cmake` configure/build as
+`scripts/update-llamacpp.sh`. The resulting path is written as `serverBin`, and the checkout
+as `llamaDir` so the app's update button uses it. Non-interactive runs (CI, `-y`,
+`--dry-run`, no terminal) never prompt: they report the missing binary and leave `serverBin`
+unset; pass `--llama-server PATH` or `--install-llamacpp` to decide up front.
 
 `install.ps1` switches: `-Mode wsl|native`, `-Distro`, `-FromRelease`, `-Tag`, `-Repo`,
 `-WithDeps`, `-NoShortcuts`, `-Uninstall`, `-Purge`. Windows setups are explained in

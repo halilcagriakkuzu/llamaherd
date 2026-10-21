@@ -4,7 +4,8 @@
 # Installs the llamaherd binary either by building a local source checkout with
 # Go, or by downloading a prebuilt asset from GitHub Releases. Optionally
 # installs system dependencies, seeds the shipped presets, writes a desktop
-# entry / .app bundle, detects llama-server + models and writes the user config,
+# entry / .app bundle, sets up llama.cpp (detect an existing llama-server, take
+# a path, or clone + build it), detects models and writes the user config,
 # and records an install manifest for a clean uninstall.
 #
 #   scripts/install.sh                 # build from this checkout (if any)
@@ -49,6 +50,15 @@ UNINSTALL=0
 PURGE=0
 ICON_SRC=""
 
+# llama.cpp (optional): point at an existing build or clone + build it.
+LLAMA_MODE=""                   # "" | path | source | skip
+LLAMA_SERVER=""                 # serverBin chosen by --llama-server / detection / build
+LLAMA_CONFIG_DIR=""             # checkout to record as llamaDir when we built it
+LLAMA_DIR="${LLAMA_DIR:-${LLAMAHERD_LLAMA_DIR:-$HOME/llama.cpp}}"
+LLAMA_BUILD_DIR="${LLAMA_BUILD_DIR:-build-latest}"
+LLAMA_BACKEND="${LLAMAHERD_LLAMA_BACKEND:-auto}"   # auto | cuda | vulkan | metal | cpu
+LLAMA_GIT_URL="${LLAMAHERD_LLAMA_GIT_URL:-https://github.com/ggml-org/llama.cpp}"
+
 # Set this to your "OWNER/REPO" so the piped one-liner needs no --repo flag:
 #   curl -fsSL .../install.sh | bash -s -- --from-release
 # (Left empty in the source repo; --repo / LLAMAHERD_REPO still override it.)
@@ -71,6 +81,36 @@ err()  { printf '%serror:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# Expand a leading ~/ (or a bare ~) in a user-supplied path.
+expand_home() {
+  case "$1" in
+    "~") printf '%s' "$HOME" ;;
+    "~/"*) printf '%s' "$HOME/${1#\~/}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# Interactive questions go through /dev/tty: `curl … | bash` leaves stdin as
+# the script pipe, so reading stdin would eat the script itself.
+TTY_OK=0
+tty_ok() { { true </dev/tty; } 2>/dev/null; }
+
+# say_tty LINE... — print to the terminal, silently doing nothing without one.
+say_tty() {
+  [ "$TTY_OK" = 1 ] && printf '%s\n' "$*" >/dev/tty 2>/dev/null
+  return 0
+}
+
+# ask PROMPT — read one line from the terminal (empty when there is none).
+ask() {
+  local reply=""
+  if [ "$TTY_OK" = 1 ]; then
+    printf '%s' "$1" >/dev/tty 2>/dev/null || true
+    IFS= read -r reply </dev/tty 2>/dev/null || reply=""
+  fi
+  printf '%s' "$reply"
+}
 
 confirm() {
   [ "$ASSUME_YES" = 1 ] && return 0
@@ -119,6 +159,14 @@ Behavior:
   -y, --yes              assume yes (non-interactive)
   --dry-run              print what would happen; change nothing
 
+llama.cpp (only needed when no llama-server is found):
+  --llama-server PATH    use this llama-server build
+  --install-llamacpp     clone llama.cpp and build it (installs git/cmake/toolchain)
+  --llama-dir DIR        checkout to reuse or build (default: ~/llama.cpp)
+  --llama-build-dir DIR  build dir inside the checkout (default: build-latest)
+  --llama-backend B      auto|cuda|vulkan|metal|cpu (default: auto)
+  --no-llamacpp          never ask about llama.cpp; leave serverBin unset
+
 Uninstall:
   --uninstall            remove a previous installation (uses the manifest)
   --purge                with --uninstall, also remove data + config
@@ -153,6 +201,18 @@ while [ $# -gt 0 ]; do
       need_arg $# "$1"; DATA_DIR="$2"; shift ;;
     --icon)
       need_arg $# "$1"; ICON_SRC="$2"; shift ;;
+    --llama-server)
+      need_arg $# "$1"; LLAMA_SERVER="$2"; LLAMA_MODE="path"; shift ;;
+    --install-llamacpp)
+      LLAMA_MODE="source" ;;
+    --llama-dir)
+      need_arg $# "$1"; LLAMA_DIR="$2"; shift ;;
+    --llama-build-dir)
+      need_arg $# "$1"; LLAMA_BUILD_DIR="$2"; shift ;;
+    --llama-backend)
+      need_arg $# "$1"; LLAMA_BACKEND="$2"; shift ;;
+    --no-llamacpp)
+      LLAMA_MODE="skip" ;;
     --with-deps) DEPS="yes" ;;
     --no-deps)   DEPS="no" ;;
     --no-desktop) WITH_DESKTOP=0 ;;
@@ -170,6 +230,16 @@ done
 [ -n "$BIN_DIR" ] || BIN_DIR="$PREFIX/bin"
 [ -n "$DATA_DIR" ] || DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/$APP"
 MANIFEST="$PREFIX/share/$APP/install.manifest"
+
+LLAMA_DIR="$(expand_home "$LLAMA_DIR")"
+case "$LLAMA_BUILD_DIR" in
+  /*) LLAMA_BUILD_PATH="$LLAMA_BUILD_DIR" ;;
+  *) LLAMA_BUILD_PATH="$LLAMA_DIR/$LLAMA_BUILD_DIR" ;;
+esac
+case "$LLAMA_BACKEND" in
+  auto | cuda | vulkan | metal | cpu) ;;
+  *) die "unknown --llama-backend: $LLAMA_BACKEND (auto|cuda|vulkan|metal|cpu)" ;;
+esac
 
 # ---------------------------------------------------------------------------
 # platform detection
@@ -326,6 +396,181 @@ install_deps() {
   elif have zypper; then
     run $SUDO zypper --non-interactive install $packages
   fi
+}
+
+# ---------------------------------------------------------------------------
+# llama.cpp (optional): reuse an existing build or clone + build one
+# ---------------------------------------------------------------------------
+detect_cuda_arch() {
+  command -v nvidia-smi >/dev/null 2>&1 || return 1
+  local caps
+  caps="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null |
+    tr -d ' \r' | grep -E '^[0-9]+\.[0-9]+$' | tr -d '.' | sort -un | paste -sd';' -)"
+  [ -n "$caps" ] && printf '%s' "$caps"
+}
+
+# install_llama_tools installs what building llama.cpp needs. Choosing the
+# source build is the consent, so it does not ask again (--no-deps still wins).
+install_llama_tools() {
+  local missing=()
+  have git || missing+=("git")
+  have cmake || missing+=("cmake")
+  if ! have cc && ! have gcc && ! have clang; then missing+=("cc"); fi
+  [ "${#missing[@]}" -eq 0 ] && return 0
+
+  if [ "$DEPS" = "no" ]; then
+    die "building llama.cpp needs ${missing[*]} (install them, or drop --no-deps)"
+  fi
+
+  if [ "$OS" = "darwin" ]; then
+    xcode-select -p >/dev/null 2>&1 ||
+      die "install the Xcode Command Line Tools first: xcode-select --install"
+    if ! have cmake; then
+      have brew || die "cmake is required; install it from https://cmake.org/download/ (or 'brew install cmake')"
+      run brew install cmake
+    fi
+    return 0
+  fi
+
+  local packages=""
+  if have apt-get; then
+    packages="git cmake build-essential"
+  elif have dnf; then
+    packages="git cmake gcc gcc-c++ make"
+  elif have pacman; then
+    packages="git cmake base-devel"
+  elif have zypper; then
+    packages="git cmake gcc gcc-c++ make"
+  else
+    die "cannot install ${missing[*]}: unknown package manager (install them manually)"
+  fi
+
+  log "Installing llama.cpp build tools: $packages"
+  local SUDO=""
+  [ "$(id -u)" -ne 0 ] && SUDO="sudo"
+  if [ -n "$SUDO" ] && ! have sudo; then
+    die "sudo not found; install $packages as root, then re-run"
+  fi
+  if have apt-get; then
+    run $SUDO apt-get update
+    # shellcheck disable=SC2086
+    run $SUDO apt-get install -y $packages
+  elif have dnf; then
+    run $SUDO dnf install -y $packages
+  elif have pacman; then
+    run $SUDO pacman -Sy --noconfirm $packages
+  else
+    run $SUDO zypper --non-interactive install $packages
+  fi
+}
+
+# build_llamacpp clones (unless a checkout is already there) and builds
+# llama-server like scripts/update-llamacpp.sh does.
+build_llamacpp() {
+  log "Building llama.cpp from source"
+  info "checkout:  $LLAMA_DIR"
+  info "build dir: $LLAMA_BUILD_PATH"
+  install_llama_tools
+
+  if [ -d "$LLAMA_DIR/.git" ]; then
+    info "reusing the existing checkout"
+  elif [ -d "$LLAMA_DIR" ] && [ -n "$(ls -A "$LLAMA_DIR" 2>/dev/null)" ]; then
+    die "$LLAMA_DIR is not empty and is not a git checkout (pick one with --llama-dir)"
+  else
+    log "Cloning $LLAMA_GIT_URL"
+    run git clone --depth 1 "$LLAMA_GIT_URL" "$LLAMA_DIR"
+  fi
+
+  local backend="$LLAMA_BACKEND"
+  if [ "$backend" = "auto" ]; then
+    if [ "$OS" = "linux" ] && have nvidia-smi; then backend="cuda"; else backend="cpu"; fi
+  fi
+  local flags=("-DCMAKE_BUILD_TYPE=Release")
+  local arch=""
+  case "$backend" in
+    cuda)
+      flags+=("-DGGML_CUDA=ON")
+      arch="$(detect_cuda_arch || true)"
+      [ -n "$arch" ] && flags+=("-DCMAKE_CUDA_ARCHITECTURES=$arch")
+      ;;
+    vulkan) flags+=("-DGGML_VULKAN=ON") ;;
+    metal) flags+=("-DGGML_METAL=ON") ;;
+  esac
+  log "Backend: $backend"
+
+  run cmake -S "$LLAMA_DIR" -B "$LLAMA_BUILD_PATH" "${flags[@]}"
+  local jobs
+  jobs="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+  run cmake --build "$LLAMA_BUILD_PATH" --config Release -j"$jobs"
+
+  LLAMA_SERVER="$LLAMA_BUILD_PATH/bin/llama-server"
+  LLAMA_CONFIG_DIR="$LLAMA_DIR"
+  if [ "$DRY_RUN" != 1 ] && [ ! -x "$LLAMA_SERVER" ]; then
+    die "build finished but $LLAMA_SERVER is missing"
+  fi
+  info "built $LLAMA_SERVER"
+}
+
+# ensure_llama_server decides what serverBin goes into the config: an explicit
+# flag, an existing installation, or an interactive choice (path or build).
+ensure_llama_server() {
+  [ "$WITH_CONFIG" = 1 ] || { info "skipping llama.cpp setup (--no-config)"; return 0; }
+
+  case "$LLAMA_MODE" in
+    path)
+      LLAMA_SERVER="$(expand_home "$LLAMA_SERVER")"
+      [ -x "$LLAMA_SERVER" ] || die "not an executable llama-server: $LLAMA_SERVER"
+      info "using llama-server $LLAMA_SERVER"
+      return 0 ;;
+    source)
+      build_llamacpp
+      return 0 ;;
+    skip)
+      info "skipping llama.cpp setup (--no-llamacpp)"
+      return 0 ;;
+  esac
+
+  # Automatic: keep a user's existing config, else look around, else ask.
+  if [ -e "$CONFIG_DIR/config.json" ]; then
+    info "llama.cpp already configured in $CONFIG_DIR/config.json"
+    return 0
+  fi
+  LLAMA_SERVER="$(detect_server_bin)"
+  if [ -n "$LLAMA_SERVER" ]; then
+    info "found llama-server at $LLAMA_SERVER"
+    return 0
+  fi
+
+  if [ "$DRY_RUN" = 1 ] || [ "$ASSUME_YES" = 1 ] || ! tty_ok; then
+    info "no llama-server found; the first run will ask for it"
+    info "  (re-run with --install-llamacpp to clone and build it here)"
+    return 0
+  fi
+
+  TTY_OK=1
+  say_tty ""
+  say_tty "No llama-server found. How should the installer provide it?"
+  say_tty "  1) I already have a build — ask me for the path  [default]"
+  say_tty "  2) Clone llama.cpp and build it from source (installs git, cmake and a C/C++ toolchain)"
+  say_tty "  3) Skip for now — configure it on first launch"
+  local choice="" path=""
+  choice="$(ask "Choice [1/2/3]: ")"
+  case "$choice" in
+    2) build_llamacpp ;;
+    3) info "skipped; set the server path on first launch" ;;
+    *)
+      path="$(ask "Path to llama-server: ")"
+      path="$(expand_home "$path")"
+      if [ -z "$path" ]; then
+        info "skipped; set the server path on first launch"
+      elif [ -x "$path" ]; then
+        LLAMA_SERVER="$path"
+        info "using llama-server $path"
+      else
+        warn "not an executable file: $path; leaving serverBin unset"
+      fi
+      ;;
+  esac
 }
 
 # ---------------------------------------------------------------------------
@@ -524,6 +769,8 @@ detect_server_bin() {
   if have llama-server; then command -v llama-server; return 0; fi
   local c
   for c in \
+    "$LLAMA_BUILD_PATH/bin/llama-server" \
+    "$LLAMA_DIR/build/bin/llama-server" \
     "$HOME/llama.cpp/build-latest/bin/llama-server" \
     "$HOME/llama.cpp/build/bin/llama-server" \
     "$HOME/llama.cpp/bin/llama-server"; do
@@ -547,7 +794,7 @@ write_config() {
     return 0
   fi
   local sb md
-  sb="$(detect_server_bin)"
+  sb="${LLAMA_SERVER:-$(detect_server_bin)}"
   md="$(detect_models_dir)"
   if [ -z "$sb" ] && [ -z "$md" ]; then
     info "no llama-server / models dir detected; first run will ask for them"
@@ -556,6 +803,7 @@ write_config() {
   local parts=() out=""
   [ -n "$sb" ] && parts+=("  \"serverBin\": \"$(json_escape "$sb")\"")
   [ -n "$md" ] && parts+=("  \"modelsDir\": \"$(json_escape "$md")\"")
+  [ -n "$LLAMA_CONFIG_DIR" ] && parts+=("  \"llamaDir\": \"$(json_escape "$LLAMA_CONFIG_DIR")\"")
   for p in "${parts[@]}"; do
     [ -n "$out" ] && out="$out,\\n"
     out="$out$p"
@@ -568,6 +816,7 @@ write_config() {
   printf '{\n%b\n}\n' "$out" >"$cfg"
   info "serverBin=$( [ -n "$sb" ] && echo "$sb" || echo '(unset)')"
   info "modelsDir=$( [ -n "$md" ] && echo "$md" || echo '(unset)')"
+  if [ -n "$LLAMA_CONFIG_DIR" ]; then info "llamaDir=$LLAMA_CONFIG_DIR"; fi
 }
 
 resolve_icon() {
@@ -706,6 +955,7 @@ main() {
   install_binary
   install_launcher
   seed_data
+  ensure_llama_server
   write_config
   install_desktop_linux
   install_app_bundle_macos
@@ -717,6 +967,7 @@ main() {
   [ "$WITH_DESKTOP" = 1 ] && info "Launcher: $BIN_DIR/$APP-gui  (desktop/Start entry: LlamaHerd)"
   info "Config:   $CONFIG_DIR/config.json"
   info "Data:     $DATA_DIR  (configs/, library/)"
+  [ -n "$LLAMA_SERVER" ] && info "Server:   $LLAMA_SERVER"
   echo
   info "Uninstall any time with: $PROG --uninstall"
 }

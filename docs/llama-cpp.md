@@ -9,6 +9,10 @@ LlamaHerd runs your own `llama-server` build; it does not bundle llama.cpp.
 the binary, its version (warning below the minimum build the presets need,
 `LLAMAHERD_MIN_LLAMA_BUILD`), the GPU, GUI libraries, models folder, disk space and API port.
 
+No build yet? `scripts/install.sh` offers to clone and build one when it finds no
+`llama-server` (`--install-llamacpp` to skip the question, `--llama-server PATH` to point at
+an existing build). The GUI's first-run dialog and the llama.cpp tab can also set the path.
+
 ## Updating from the GUI
 
 The **llama.cpp** tab shows the installed version/commit and can update and rebuild the

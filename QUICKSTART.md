@@ -12,6 +12,11 @@ curl -fsSL https://raw.githubusercontent.com/halilcagriakkuzu/llamaherd/main/scr
 Windows 11: `powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -FromRelease`
 (see [Windows and WSL](docs/windows-and-wsl.md) for the three setups).
 
+No `llama-server` on the machine yet? The installer stops and offers three choices: enter
+the path to an existing build, clone llama.cpp and build it from source (git, cmake and a
+C/C++ toolchain are installed for you), or skip and configure it on first launch. Pass
+`--install-llamacpp` / `--llama-server PATH` to answer up front.
+
 **2. Point it at `llama-server` and your models**
 
 In the GUI, the first-run dialog has a **Detect** button: it searches `PATH`, the usual

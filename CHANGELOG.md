@@ -5,6 +5,21 @@ All notable changes to LlamaHerd are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-21
+
+### Added
+
+- **llama.cpp bootstrap in the installer**: when `install.sh` finds no `llama-server`, it now
+  asks (via `/dev/tty`, so the `curl … | bash` one-liner works too) whether to use an existing
+  build at a path you type, clone `ggml-org/llama.cpp` and build it from source, or skip.
+  The source path installs the missing tools (git, cmake, gcc/g++/make via apt/dnf/pacman/
+  zypper; Xcode CLT + Homebrew cmake on macOS), reuses an existing checkout, and builds with
+  the same cmake flags as `scripts/update-llamacpp.sh` (CUDA auto-detected from `nvidia-smi`).
+  New flags `--llama-server PATH`, `--install-llamacpp`, `--llama-dir`,
+  `--llama-build-dir`, `--llama-backend auto|cuda|vulkan|metal|cpu` and `--no-llamacpp` make
+  it non-interactive; `-y`/`--dry-run`/no terminal never prompt. The build is recorded as
+  `serverBin` and its checkout as `llamaDir`.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added
