@@ -620,6 +620,10 @@
   <div id="dlModal" class="modal" hidden>
     <div class="modal-box">
       <h2 class="modal-title">Download a model</h2>
+      <div id="dlQueueWrap" hidden>
+        <h3 class="llama-h">Download queue</h3>
+        <div id="dlQueue" class="dl-list"></div>
+      </div>
       <details id="dlCatalogBox" open>
         <summary><span id="dlSummary">Recommended for this machine</span></summary>
         <div id="dlDisk" class="dl-disk"></div>
@@ -662,10 +666,6 @@
           <button id="dlRetry" class="tiny" hidden>Retry</button>
           <button id="dlCancel" class="tiny btn-stop">Cancel</button>
         </div>
-      </div>
-      <div id="dlQueueWrap" hidden>
-        <h3 class="llama-h">Download queue</h3>
-        <div id="dlQueue" class="dl-list"></div>
       </div>
     </div>
   </div>
