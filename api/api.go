@@ -32,6 +32,8 @@ type Control interface {
 	RetryDownload() error
 	RemoveQueuedDownload(id string) error
 	SetHFToken(token string) error
+	NotificationSettings() settings.NotificationSettings
+	SetNotificationSettings(settings.NotificationSettings) error
 	Models() []schema.Model
 	Presets(alias string) []schema.Preset
 	SelectModelByAlias(alias string) error
@@ -226,6 +228,21 @@ func Handler(c Control) http.Handler {
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true})
+	})
+	mux.HandleFunc("GET /notifications", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, c.NotificationSettings())
+	})
+	mux.HandleFunc("POST /notifications", func(w http.ResponseWriter, r *http.Request) {
+		var req settings.NotificationSettings
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := c.SetNotificationSettings(req); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "settings": c.NotificationSettings()})
 	})
 	mux.HandleFunc("GET /doctor", func(w http.ResponseWriter, r *http.Request) {
 		b, err := c.DoctorJSON()

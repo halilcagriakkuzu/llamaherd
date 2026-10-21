@@ -84,6 +84,83 @@ type File struct {
 	// LogFile overrides the rotating log path (default <data>/logs/llamaherd.log);
 	// the literal "off" disables writing logs to disk.
 	LogFile string `json:"logFile,omitempty"`
+	// Notifications toggles host OS notifications; nil means "all defaults on".
+	Notifications *Notifications `json:"notifications,omitempty"`
+}
+
+// Notifications selects which host OS notifications are emitted. A nil field
+// means the default (true); the master switch is Enabled.
+type Notifications struct {
+	Enabled     *bool `json:"enabled,omitempty"`
+	ServerReady *bool `json:"serverReady,omitempty"`
+	ServerCrash *bool `json:"serverCrash,omitempty"`
+	Download    *bool `json:"download,omitempty"`
+	Benchmark   *bool `json:"benchmark,omitempty"`
+}
+
+// NotificationSettings is the resolved (defaults applied) notification config.
+type NotificationSettings struct {
+	Enabled     bool `json:"enabled"`
+	ServerReady bool `json:"serverReady"`
+	ServerCrash bool `json:"serverCrash"`
+	Download    bool `json:"download"`
+	Benchmark   bool `json:"benchmark"`
+}
+
+func boolOr(p *bool, def bool) bool {
+	if p == nil {
+		return def
+	}
+	return *p
+}
+
+// NotificationSettings returns the effective notification toggles (default on).
+func NotifySettings() NotificationSettings {
+	n := Config().Notifications
+	if n == nil {
+		return NotificationSettings{Enabled: true, ServerReady: true, ServerCrash: true, Download: true, Benchmark: true}
+	}
+	return NotificationSettings{
+		Enabled:     boolOr(n.Enabled, true),
+		ServerReady: boolOr(n.ServerReady, true),
+		ServerCrash: boolOr(n.ServerCrash, true),
+		Download:    boolOr(n.Download, true),
+		Benchmark:   boolOr(n.Benchmark, true),
+	}
+}
+
+// SaveNotificationSettings writes the toggles into the user config (keeping
+// every other setting). Templates skipped by a nil pointer are not used here.
+func SaveNotificationSettings(s NotificationSettings) error {
+	f := Config()
+	f.Notifications = &Notifications{
+		Enabled:     &s.Enabled,
+		ServerReady: &s.ServerReady,
+		ServerCrash: &s.ServerCrash,
+		Download:    &s.Download,
+		Benchmark:   &s.Benchmark,
+	}
+	return Save(f)
+}
+
+// NotifyEvent reports whether the given event class should produce a host
+// notification. class is one of "ready", "crash", "download", "benchmark".
+func NotifyEvent(class string) bool {
+	n := NotifySettings()
+	if !n.Enabled {
+		return false
+	}
+	switch class {
+	case "ready":
+		return n.ServerReady
+	case "crash":
+		return n.ServerCrash
+	case "download":
+		return n.Download
+	case "benchmark":
+		return n.Benchmark
+	}
+	return false
 }
 
 // ConfigFile returns the path of the user config file.

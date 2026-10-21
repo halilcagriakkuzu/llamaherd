@@ -21,12 +21,23 @@ Written by the first-run dialog; editable by hand.
   "modelsDir": "/data/models",
   "apiPort": "8517",
   "apiToken": "",
-  "logFile": ""
+  "logFile": "",
+  "notifications": {
+    "enabled": true,
+    "serverReady": true,
+    "serverCrash": true,
+    "download": true,
+    "benchmark": true
+  }
 }
 ```
 
 `logFile` is the rotating app/server log (5 MiB per file, 3 backups). Set it to `"off"` to
 disable writing logs to disk; the in-memory log view and `GET /logs` keep working.
+
+`notifications` selects the host OS notifications (server ready, crash/not responding,
+download finished/failed, benchmark finished). Missing fields default to `true`; set
+`enabled` to `false` to keep everything in the in-app notification center only.
 
 The file is written with `0600` permissions (it can hold the API token). On Windows,
 `serverBin` may be `wsl:<distro>:/path/to/llama-server`

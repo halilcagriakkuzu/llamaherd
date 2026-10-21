@@ -47,7 +47,16 @@ func (f *fake) RemoveQueuedDownload(id string) error {
 	f.rec("queue-remove:" + id)
 	return nil
 }
-func (f *fake) SetHFToken(t string) error        { f.rec("token"); return nil }
+func (f *fake) SetHFToken(t string) error { f.rec("token"); return nil }
+func (f *fake) NotificationSettings() settings.NotificationSettings {
+	s := settings.NotifySettings()
+	s.ServerReady, s.Download = true, true
+	return s
+}
+func (f *fake) SetNotificationSettings(s settings.NotificationSettings) error {
+	f.rec(fmt.Sprintf("notifications:%v:%v", s.Enabled, s.Download))
+	return nil
+}
 func (f *fake) Models() []schema.Model           { return []schema.Model{{Display: "m", Alias: "a"}} }
 func (f *fake) Presets(a string) []schema.Preset { return []schema.Preset{{Name: "default"}} }
 func (f *fake) SelectModelByAlias(string) error  { return nil }
@@ -348,5 +357,20 @@ func TestLibraryEndpoints(t *testing.T) {
 	}
 	if code, _ := do(t, h, "POST", "/category/create", `{bad`, nil); code != http.StatusBadRequest {
 		t.Errorf("malformed body = %d", code)
+	}
+}
+
+func TestNotificationEndpoints(t *testing.T) {
+	isolate(t)
+	f := &fake{}
+	h := Handler(f)
+	if code, body := do(t, h, "GET", "/notifications", "", nil); code != 200 || !strings.Contains(body, `"enabled":true`) {
+		t.Errorf("GET /notifications = %d %s", code, body)
+	}
+	if code, body := do(t, h, "POST", "/notifications", `{"enabled":true,"download":false}`, nil); code != 200 || !strings.Contains(body, `"ok":true`) {
+		t.Errorf("POST /notifications = %d %s", code, body)
+	}
+	if got := strings.Join(f.calls, ","); !strings.Contains(got, "notifications:true:false") {
+		t.Errorf("calls = %s", got)
 	}
 }

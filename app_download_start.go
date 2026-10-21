@@ -213,6 +213,7 @@ func (a *App) runDownloadJob(ctx context.Context, job QueuedDownload, cancel con
 			d.Message = fmt.Sprintf("installed %s", d.File)
 		})
 		a.Log("hf: download complete")
+		a.notifyEvent("download", "LlamaHerd: download finished", fmt.Sprintf("%s is installed", job.File))
 	case pausing:
 		a.dlMu.Lock()
 		// Put the paused job back at the front so Resume restarts it; the
@@ -239,6 +240,7 @@ func (a *App) runDownloadJob(ctx context.Context, job QueuedDownload, cancel con
 			d.Error = err.Error()
 		})
 		a.Log("hf: download failed: " + err.Error())
+		a.notifyEvent("download", "LlamaHerd: download failed", fmt.Sprintf("%s: %s", job.File, err.Error()))
 	}
 	a.emitState()
 }

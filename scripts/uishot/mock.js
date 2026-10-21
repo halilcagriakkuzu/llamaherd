@@ -113,6 +113,8 @@
     GetState: () => Promise.resolve(snap),
     GetLlamaPanel: () => Promise.resolve(llama), CheckLlamaUpdates: () => Promise.resolve(llama),
     GetCatalog: () => Promise.resolve(catalog), RefreshCatalog: () => Promise.resolve(catalog), GetFullCatalog: () => Promise.resolve(full), ListRepoFiles: () => Promise.resolve(repoFiles), GetHFTokenStatus: () => Promise.resolve({ configured: false }),
+    NotificationSettings: () => Promise.resolve({ enabled: true, serverReady: true, serverCrash: true, download: true, benchmark: true }),
+    SetNotificationSettings: () => Promise.resolve(),
     DetectServerBin: () => Promise.resolve({ path: "/home/me/llama.cpp/build/bin/llama-server", version: "0.7.0-dev (b11708)" }),
     DiagnosticsText: () => Promise.resolve("LlamaHerd mock diagnostics\nstatus: running"),
     CheckImport: (paths) => Promise.resolve(paths.map((p, i) => i === 0
@@ -193,6 +195,9 @@
       byId("moreBtn").click();
       ok("more menu closes", byId("moreMenu").hidden);
       ok("notification center button", !!byId("notifBtn"));
+      byId("tabBtnLlama").click();
+      ok("notification settings UI", !!byId("notifEnabled") && !!byId("notifSave"));
+      byId("tabBtnBasic").click();
       // Any toast also lands in the notification center.
       byId("rescanBtn").click();
 

@@ -107,6 +107,12 @@ type App struct {
 	dlSeq     int64
 	dlLast    QueuedDownload // last started job, for RetryDownload
 
+	// Host OS notifications (T14): notifier is injectable for tests; notifyStatus
+	// remembers the last server state so transitions fire once.
+	notifier     func(title, body string) error
+	notifyMu     sync.Mutex
+	notifyStatus string
+
 	// metricHistory is a 10-minute ring of live samples; metricsAt throttles
 	// sampling to the 5 s metrics tick.
 	metricHistory []schema.MetricsPoint
@@ -163,6 +169,7 @@ func NewApp() *App {
 		mgr:       control.NewManager(bin),
 		presets:   map[string][]schema.Preset{},
 		eventCh:   make(chan eventMsg, 1024),
+		notifier:  control.Notify,
 	}
 }
 
@@ -849,13 +856,16 @@ func (a *App) emitState() {
 	a.recordMetricsLocked()
 	s := a.snapshotLocked()
 	a.stateMu.Unlock()
+	a.notifyServerTransition(s.Status, s.CrashExit)
 	a.dispatchState(s)
 }
 
 // emitStateLocked is emitState for callers that already hold stateMu.
 func (a *App) emitStateLocked() {
 	a.recordMetricsLocked()
-	a.dispatchState(a.snapshotLocked())
+	s := a.snapshotLocked()
+	a.notifyServerTransition(s.Status, s.CrashExit)
+	a.dispatchState(s)
 }
 
 // metricsMax is 10 minutes at the 5 s sampling cadence.

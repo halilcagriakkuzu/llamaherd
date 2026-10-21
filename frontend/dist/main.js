@@ -76,6 +76,13 @@
     notifCount: $("notifCount"),
     notifEmpty: $("notifEmpty"),
     notifClear: $("notifClear"),
+    notifEnabled: $("notifEnabled"),
+    notifReady: $("notifReady"),
+    notifCrash: $("notifCrash"),
+    notifDownload: $("notifDownload"),
+    notifBenchmark: $("notifBenchmark"),
+    notifSave: $("notifSave"),
+    notifMsg: $("notifMsg"),
     pathBin: $("pathBin"),
     pathModels: $("pathModels"),
     pathBinBrowse: $("pathBinBrowse"),
@@ -301,6 +308,35 @@
 
   function notifyStatus(status, message) {
     if (status !== lastStatus && (status === "crashed" || status === "failed")) notify(message, "error");
+  }
+
+  function loadNotificationSettings() {
+    const a = app();
+    if (!a || typeof a.NotificationSettings !== "function") return;
+    Promise.resolve(a.NotificationSettings()).then((s) => {
+      if (!s) return;
+      el.notifEnabled.checked = !!s.enabled;
+      el.notifReady.checked = !!s.serverReady;
+      el.notifCrash.checked = !!s.serverCrash;
+      el.notifDownload.checked = !!s.download;
+      el.notifBenchmark.checked = !!s.benchmark;
+    }).catch(() => {});
+  }
+
+  function saveNotificationSettings() {
+    const a = app();
+    if (!a || typeof a.SetNotificationSettings !== "function") return;
+    const s = {
+      enabled: el.notifEnabled.checked,
+      serverReady: el.notifReady.checked,
+      serverCrash: el.notifCrash.checked,
+      download: el.notifDownload.checked,
+      benchmark: el.notifBenchmark.checked,
+    };
+    el.notifMsg.textContent = "";
+    Promise.resolve(a.SetNotificationSettings(s))
+      .then(() => { el.notifMsg.textContent = "saved"; toast("notification settings saved", "ok"); })
+      .catch((err) => { el.notifMsg.textContent = "error: " + (err && err.message ? err.message : err); });
   }
 
   function toast(message, kind) {
@@ -1439,7 +1475,7 @@
       btn.classList.toggle("active", name === which);
       panel.classList.toggle("active", name === which);
     });
-    if (which === "llama") refreshLlama();
+    if (which === "llama") { refreshLlama(); loadNotificationSettings(); }
   }
 
   // ---- library editing: context menu, rename / move / category dialogs ----
@@ -2381,6 +2417,7 @@
     el.pathBin.addEventListener("input", () => { pathsDirty = true; });
     el.pathModels.addEventListener("input", () => { pathsDirty = true; });
     el.pathSave.addEventListener("click", savePaths);
+    el.notifSave.addEventListener("click", saveNotificationSettings);
     el.autoFitBtn.addEventListener("click", () => {
       const a = app();
       if (!a) return;

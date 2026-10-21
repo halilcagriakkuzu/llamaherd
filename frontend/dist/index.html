@@ -394,6 +394,34 @@
             <button id="llamaKill" class="tiny btn-stop">Force stop all</button>
             <span class="llama-hint">SIGTERM, then SIGKILL after 4 s &mdash; includes servers LlamaHerd did not start.</span>
           </div>
+          <div class="sect" id="sectNotifications">
+            <h3 class="llama-h">Notifications</h3>
+            <p class="llama-hint">Host notifications for events that matter while the window is minimized.</p>
+            <div class="field toggle">
+              <label class="fl" for="notifEnabled">Enable host notifications</label>
+              <input type="checkbox" id="notifEnabled">
+            </div>
+            <div class="field toggle">
+              <label class="fl" for="notifReady">Server ready</label>
+              <input type="checkbox" id="notifReady">
+            </div>
+            <div class="field toggle">
+              <label class="fl" for="notifCrash">Server crashed / not responding</label>
+              <input type="checkbox" id="notifCrash">
+            </div>
+            <div class="field toggle">
+              <label class="fl" for="notifDownload">Download finished / failed</label>
+              <input type="checkbox" id="notifDownload">
+            </div>
+            <div class="field toggle">
+              <label class="fl" for="notifBenchmark">Benchmark finished</label>
+              <input type="checkbox" id="notifBenchmark">
+            </div>
+            <div class="llama-actions">
+              <button id="notifSave" class="tiny">Save notifications</button>
+              <span id="notifMsg" class="llama-hint"></span>
+            </div>
+          </div>
           <div class="sect" id="sectPaths">
             <h3 class="llama-h">Paths</h3>
             <label class="fl" for="pathBin">llama-server binary</label>

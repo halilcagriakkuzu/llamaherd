@@ -121,6 +121,8 @@ func (a *App) RunBenchmark() (schema.Benchmark, error) {
 	a.stateMu.Unlock()
 	a.Log(fmt.Sprintf("bench: %s [%s] %.1f tok/s generation, %.1f tok/s prompt, peak VRAM %s",
 		modelName, preset, b.GenTokS, b.PromptTokS, control.HumanMB(b.PeakVRAMMB)))
+	a.notifyEvent("benchmark", "LlamaHerd: benchmark finished",
+		fmt.Sprintf("%s [%s]: %.1f tok/s generation, %.1f tok/s prompt", modelName, preset, b.GenTokS, b.PromptTokS))
 	a.emitState()
 	return b, nil
 }

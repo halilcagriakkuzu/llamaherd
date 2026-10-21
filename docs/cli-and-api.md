@@ -49,6 +49,8 @@ llamaherd download <owner/name> <file> [--vision <f>|--no-vision] [--mtp <f>|--n
 llamaherd download status | cancel | token [<t>|--clear]
 llamaherd download queue [rm <id>] | pause | resume | retry
 
+llamaherd notifications [status|on|off|ready|crash|download|benchmark on|off]
+
 llamaherd doctor [--json]                  # environment check with fixes
 llamaherd version
 ```
@@ -83,6 +85,8 @@ llamaherd version
 | `POST /download/cancel`, `/token` | see `api/api.go` | cancel / Hugging Face token |
 | `POST /download/pause`, `/download/resume`, `/download/retry` | — | pause the active transfer (keeps `.part`), resume it, retry the last failure once |
 | `POST /download/queue` | `{id}` | remove one waiting job; the active transfer is untouched |
+| `GET /notifications` | — | effective host-notification toggles |
+| `POST /notifications` | `{enabled, serverReady, serverCrash, download, benchmark}` | update the toggles (missing fields keep their values) |
 
 `model` is a file path or an alias. Mutating calls return `{"ok":true}` or
 `{"ok":false,"error":"..."}`.

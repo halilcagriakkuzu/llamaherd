@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crashes, benchmarks, imports, errors) also land in a bell **notification center** with
   timestamps, persisted for the browser session; clearing the center does not remove the
   toast and vice versa. The model actions now read Rescan / Folder / Import / Download.
+- **Host OS notifications**: server ready, server crash / not responding, download
+  finished/failed and benchmark finished produce one native notification per event (Linux
+  `notify-send`, macOS `osascript`, Windows toast). A per-class toggle in the llama.cpp tab
+  (default on) and `GET/POST /notifications` control them; `llamaherd notifications
+  [status|on|off|ready|crash|download|benchmark on|off]` does the same from the CLI. With no
+  native backend the event stays in the in-app center. WSL-hosted servers notify on the
+  Windows host because the GUI process owns the notifier.
 - **Multi-part GGUF downloads**: selecting a `-00001-of-000NN.gguf` shard set downloads
   every part into the same folder (per-shard sha256 verification and resume), skips shards
   that already completed, records one library entry/preset whose `--model` is the first

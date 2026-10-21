@@ -71,6 +71,8 @@ func runCLI(args []string) int {
 		return runDownload(args)
 	case "logs":
 		return runLogsCLI(args)
+	case "notifications":
+		return runNotificationsCLI(args)
 	case "completion":
 		return runCompletion(args)
 	case "list", "status", "open", "stop", "restart", "rescan", "save", "load", "bench":
@@ -111,6 +113,8 @@ func helpLines() []string {
 		"  restart              stop and start with the current form settings",
 		"  rescan               re-walk the models directory",
 		"  logs [-f] [--tail n] show the app/server log (follow with -f)",
+		"  notifications [status|on|off|ready|crash|download|benchmark on|off]",
+		"                       host OS notifications (ready/crash/download/benchmark)",
 		"  bench [list|clear]   benchmark the running model/config (or list stored results)",
 		"  save | load          save/load the current selection's configs/<alias>.json",
 		"  config add <alias> <name> [--set basic.port=8090 --set advanced.fit=on ...]",
@@ -156,24 +160,25 @@ func helpLines() []string {
 // unknown, so the caller falls through).
 func subcommandUsage(sub string) string {
 	m := map[string]string{
-		"list":       "usage: llamaherd list [alias-substring]",
-		"status":     "usage: llamaherd status",
-		"open":       "usage: llamaherd open [alias] [--preset name]",
-		"stop":       "usage: llamaherd stop",
-		"restart":    "usage: llamaherd restart",
-		"rescan":     "usage: llamaherd rescan",
-		"bench":      "usage: llamaherd bench [list|clear]   # requires a running server",
-		"logs":       "usage: llamaherd logs [-f] [--tail n]",
-		"completion": "usage: llamaherd completion bash|zsh|fish",
-		"save":       "usage: llamaherd save",
-		"load":       "usage: llamaherd load",
-		"daemon":     "usage: llamaherd daemon            # headless: serve only the control API",
-		"doctor":     "usage: llamaherd doctor [--json]",
-		"download":   "usage: llamaherd download list|<ref> [<file>] [--vision <file>]|status|cancel|token [<t>|--clear]",
-		"config":     "usage: llamaherd config add|update|remove|rename <alias> <name> | config reset [<name>] | config export | config autofit",
-		"model":      "usage: llamaherd model rename <alias> [--name N] [--alias A] | model move <alias> [<a/b/c>] | model favorite <alias> [--off] | model delete <alias> | model import <file.gguf|dir>... [--mmproj <file>] [--move] [--allow-duplicate] [--check]",
-		"category":   "usage: llamaherd category create|delete <a/b/c> | category rename <a/b/c> <new-name>",
-		"version":    "usage: llamaherd version          # print the version and exit",
+		"list":          "usage: llamaherd list [alias-substring]",
+		"status":        "usage: llamaherd status",
+		"open":          "usage: llamaherd open [alias] [--preset name]",
+		"stop":          "usage: llamaherd stop",
+		"restart":       "usage: llamaherd restart",
+		"rescan":        "usage: llamaherd rescan",
+		"bench":         "usage: llamaherd bench [list|clear]   # requires a running server",
+		"logs":          "usage: llamaherd logs [-f] [--tail n]",
+		"notifications": "usage: llamaherd notifications [status|on|off|ready|crash|download|benchmark on|off]",
+		"completion":    "usage: llamaherd completion bash|zsh|fish",
+		"save":          "usage: llamaherd save",
+		"load":          "usage: llamaherd load",
+		"daemon":        "usage: llamaherd daemon            # headless: serve only the control API",
+		"doctor":        "usage: llamaherd doctor [--json]",
+		"download":      "usage: llamaherd download list|<ref> [<file>] [--vision <file>]|status|cancel|token [<t>|--clear]",
+		"config":        "usage: llamaherd config add|update|remove|rename <alias> <name> | config reset [<name>] | config export | config autofit",
+		"model":         "usage: llamaherd model rename <alias> [--name N] [--alias A] | model move <alias> [<a/b/c>] | model favorite <alias> [--off] | model delete <alias> | model import <file.gguf|dir>... [--mmproj <file>] [--move] [--allow-duplicate] [--check]",
+		"category":      "usage: llamaherd category create|delete <a/b/c> | category rename <a/b/c> <new-name>",
+		"version":       "usage: llamaherd version          # print the version and exit",
 	}
 	return m[sub]
 }
