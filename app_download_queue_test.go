@@ -15,15 +15,7 @@ import (
 	"time"
 )
 
-// hfFile is one file served by the fake Hub.
-type hfFile struct {
-	Path    string
-	Content []byte
-	// Block, when set, holds the first transfer after half the body until the
-	// channel is closed (used to pause a download mid-flight).
-	Block chan struct{}
-}
-
+// downloadHub is a fake Hugging Face Hub for queue/shard tests.
 type downloadHub struct {
 	mu     sync.Mutex
 	reqs   []string

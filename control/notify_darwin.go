@@ -5,7 +5,14 @@ package control
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 )
+
+// escapeAppleScript quotes a string for an AppleScript literal.
+func escapeAppleScript(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return strings.ReplaceAll(s, `"`, `\"`)
+}
 
 // notifyPlatform uses AppleScript's display notification.
 func notifyPlatform(title, body string) error {
