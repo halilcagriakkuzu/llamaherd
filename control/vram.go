@@ -10,12 +10,9 @@ package control
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"llamaherd/schema"
 	"llamaherd/store"
@@ -270,41 +267,17 @@ func SafeGpuLayers(cfg schema.Config) int {
 	return -1
 }
 
-// vramProbe, when non-nil, replaces the nvidia-smi query (tests only).
+// vramProbe, when non-nil, replaces the provider query (tests only).
 var vramProbe func() int
 
-var (
-	vramMu     sync.Mutex
-	vramCached int
-	vramAt     time.Time
-)
-
-// TotalVramMB reports the GPU's total memory in MiB (0 if nvidia-smi is
-// unavailable). Cached briefly so a UI keystroke storm cannot fork a process
-// per key.
+// TotalVramMB reports the active provider's total GPU memory in MiB (0 when no
+// provider is available). Cached by ActiveGPU so a UI keystroke storm cannot
+// fork a process per key.
 func TotalVramMB() int {
 	if f := vramProbe; f != nil {
 		return f()
 	}
-	vramMu.Lock()
-	defer vramMu.Unlock()
-	if time.Since(vramAt) < 10*time.Second {
-		return vramCached
-	}
-	out, err := exec.Command("nvidia-smi",
-		"--query-gpu=memory.total", "--format=csv,noheader,nounits").Output()
-	total := 0
-	if err == nil {
-		for _, line := range strings.Split(string(out), "\n") {
-			v, perr := strconv.Atoi(strings.TrimSpace(line))
-			if perr == nil {
-				total += v
-			}
-		}
-	}
-	vramCached = total
-	vramAt = time.Now()
-	return total
+	return ActiveGPU().TotalVRAMMB()
 }
 
 // overrideCPUMB estimates the weight MiB moved to the CPU by -ot rules whose

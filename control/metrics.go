@@ -4,70 +4,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os/exec"
-	"strconv"
-	"strings"
 	"time"
 )
 
-// VramGPU reports GPU memory. In WSL the per-process query answers
+// VramMB reports GPU memory. In WSL the per-process query answers
 // "[N/A]" (a known WSL nvidia-smi limitation), so we fall back to the
-// total GPU memory used — good enough on a single-user workstation.
+// total GPU memory used — good enough on a single-user workstation. A provider
+// without a per-process number (AMD/Intel/Apple) uses the same fallback.
 func VramMB(pid int) int {
 	if pid <= 0 {
 		return 0
 	}
-	total := perPidVram(pid)
-	if total > 0 {
+	p := ActiveGPU()
+	if total := p.ProcessVRAMMB(pid); total > 0 {
 		return total
 	}
-	return totalGpuVram()
-}
-
-// perPidVram sums the process's GPU memory across all visible GPUs.
-func perPidVram(pid int) int {
-	out, err := exec.Command("nvidia-smi",
-		"--query-compute-apps=pid,used_gpu_memory",
-		"--format=csv,noheader,nounits").Output()
-	if err != nil {
-		return 0
-	}
-	total := 0
-	for _, line := range strings.Split(string(out), "\n") {
-		parts := strings.Split(line, ",")
-		if len(parts) < 2 {
-			continue
-		}
-		p, err := strconv.Atoi(strings.TrimSpace(parts[0]))
-		if err != nil || p != pid {
-			continue
-		}
-		mem, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-		if err != nil {
-			continue
-		}
-		total += mem
-	}
-	return total
-}
-
-// totalGpuVram sums memory.used across all visible GPUs (WSL fallback: the
-// per-process metric is not reported inside WSL).
-func totalGpuVram() int {
-	out, err := exec.Command("nvidia-smi",
-		"--query-gpu=memory.used", "--format=csv,noheader,nounits").Output()
-	if err != nil {
-		return 0
-	}
-	used := 0
-	for _, line := range strings.Split(string(out), "\n") {
-		v, err := strconv.Atoi(strings.TrimSpace(line))
-		if err != nil {
-			continue
-		}
-		used += v
-	}
-	return used
+	return p.UsedVRAMMB()
 }
 
 // RamMB reports the resident set size of the given pid in MiB (0 when the
@@ -149,28 +101,8 @@ func HumanMB(mb int) string {
 }
 
 // GPUUtilTemp returns the highest utilization (%) and temperature (°C) across
-// visible NVIDIA GPUs. Zero values mean "unavailable" (non-NVIDIA, driver, or
-// WSL restrictions).
+// visible GPUs. Zero values mean "unavailable" (no provider, driver or WSL
+// restrictions).
 func GPUUtilTemp() (util, temp int) {
-	out, err := exec.Command("nvidia-smi",
-		"--query-gpu=utilization.gpu,temperature.gpu",
-		"--format=csv,noheader,nounits").Output()
-	if err != nil {
-		return 0, 0
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		parts := strings.Split(line, ",")
-		if len(parts) < 2 {
-			continue
-		}
-		u, e1 := strconv.Atoi(strings.TrimSpace(parts[0]))
-		t, e2 := strconv.Atoi(strings.TrimSpace(parts[1]))
-		if e1 == nil && u > util {
-			util = u
-		}
-		if e2 == nil && t > temp {
-			temp = t
-		}
-	}
-	return util, temp
+	return ActiveGPU().UtilTemp()
 }

@@ -141,14 +141,7 @@ func binaryVersion(bin string, mtime time.Time) string {
 }
 
 func gpuName() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "nvidia-smi",
-		"--query-gpu=name,compute_cap,memory.total", "--format=csv,noheader").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
+	return GPUInfoNow().Name
 }
 
 // FetchLlama runs `git fetch` so Behind becomes meaningful.

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Non-NVIDIA GPU support**: a small GPU provider abstraction now probes NVIDIA
+  (`nvidia-smi`, unchanged), AMD (`rocm-smi`), Intel (`xpu-smi`) and Apple Silicon
+  (unified memory via `sysctl`). `doctor` names the active vendor; unknown values stay `—`
+  and the VRAM guard keeps its conservative "no estimate" behaviour. The AMD/Intel parsers
+  are unit-tested with injected output and documented as untested on real hardware.
 - **Download queue**: starting a second download queues it; the queue runs one job at a
   time, supports pause/resume (continuing from the `.part` file), one retry with backoff,
   and removing a waiting job without touching the active transfer. API:
